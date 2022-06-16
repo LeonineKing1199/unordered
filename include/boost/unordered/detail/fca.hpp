@@ -434,11 +434,10 @@ namespace boost {
 
         BOOST_STATIC_CONSTANT(std::size_t, N = sizeof(std::size_t) * CHAR_BIT);
 
-        bucket_pointer buckets;
         std::size_t bitmask;
         bucket_group_pointer next, prev;
 
-        bucket_group() BOOST_NOEXCEPT : buckets(), bitmask(0), next(), prev() {}
+        bucket_group() BOOST_NOEXCEPT : bitmask(0), next(), prev() {}
         ~bucket_group() {}
       };
 
@@ -470,11 +469,11 @@ namespace boost {
         typedef std::forward_iterator_tag iterator_category;
 
       private:
-        bucket_pointer p;
-        bucket_group_pointer pbg;
+        bucket_pointer buckets, p;
+        bucket_group_pointer groups, pbg;
 
       public:
-        grouped_bucket_iterator() : p(), pbg() {}
+        grouped_bucket_iterator() : buckets(), p(), groups(), pbg() {}
 
         reference operator*() const BOOST_NOEXCEPT { return dereference(); }
         pointer operator->() const BOOST_NOEXCEPT
@@ -513,8 +512,9 @@ namespace boost {
 
         BOOST_STATIC_CONSTANT(std::size_t, N = bucket_group<Bucket>::N);
 
-        grouped_bucket_iterator(bucket_pointer p_, bucket_group_pointer pbg_)
-            : p(p_), pbg(pbg_)
+        grouped_bucket_iterator(bucket_pointer buckets_, bucket_pointer p_,
+          bucket_group_pointer groups_, bucket_group_pointer pbg_)
+            : buckets(buckets_), p(p_), groups(groups_), pbg(pbg_)
         {
         }
 
@@ -527,18 +527,22 @@ namespace boost {
 
         void increment() BOOST_NOEXCEPT
         {
-          std::size_t const offset = static_cast<std::size_t>(p - pbg->buckets);
+          difference_type A = static_cast<difference_type>(N);
+
+          bucket_pointer bucket_start = buckets + (p - buckets) / A * A;
+          std::size_t const offset = static_cast<std::size_t>(p - bucket_start);
 
           std::size_t n = std::size_t(boost::core::countr_zero(
             pbg->bitmask & reset_first_bits(offset + 1)));
 
           if (n < N) {
-            p = pbg->buckets + static_cast<difference_type>(n);
+            p = bucket_start + static_cast<difference_type>(n);
           } else {
             pbg = pbg->next;
+            bucket_start = buckets + (pbg - groups) * A;
 
             std::ptrdiff_t x = boost::core::countr_zero(pbg->bitmask);
-            p = pbg->buckets + x;
+            p = bucket_start + x;
           }
         }
       };
@@ -785,8 +789,8 @@ namespace boost {
           group_pointer pbg =
             groups + static_cast<difference_type>(num_groups - 1);
 
-          pbg->buckets =
-            buckets + static_cast<difference_type>(N * (size_ / N));
+          // pbg->buckets =
+          //   buckets + static_cast<difference_type>(N * (size_ / N));
           pbg->bitmask = set_bit(size_ % N);
           pbg->next = pbg->prev = pbg;
         }
@@ -926,8 +930,8 @@ namespace boost {
         {
           std::size_t const N = group::N;
 
-          iterator pbg(buckets + static_cast<difference_type>(n),
-            groups + static_cast<difference_type>(n / N));
+          iterator pbg(buckets, buckets + static_cast<difference_type>(n),
+            groups, groups + static_cast<difference_type>(n / N));
 
           return pbg;
         }
@@ -968,8 +972,8 @@ namespace boost {
               group_pointer last_group =
                 groups + static_cast<difference_type>(num_groups - 1);
 
-              pbg->buckets =
-                buckets + static_cast<difference_type>(N * (n / N));
+              // pbg->buckets =
+              //   buckets + static_cast<difference_type>(N * (n / N));
               pbg->next = last_group->next;
               pbg->next->prev = pbg;
               pbg->prev = last_group;
@@ -1028,23 +1032,29 @@ namespace boost {
                                           this->groups_len() - 1);
 
           for (; pbg != last; ++pbg) {
-            if (!pbg->buckets) {
+            if (!pbg->prev && !pbg->next && pbg->bitmask == 0) {
               continue;
             }
 
             for (std::size_t n = 0; n < N; ++n) {
-              bucket_pointer bs = pbg->buckets;
+              bucket_pointer bs =
+                buckets + (pbg - groups) * static_cast<difference_type>(N);
+
               bucket_type& b = bs[static_cast<std::ptrdiff_t>(n)];
               if (!b.next)
                 pbg->bitmask &= reset_bit(n);
             }
+
             if (!pbg->bitmask && pbg->next)
               unlink_group(pbg);
           }
 
           // do not check end bucket
           for (std::size_t n = 0; n < size_ % N; ++n) {
-            if (!pbg->buckets[static_cast<std::ptrdiff_t>(n)].next)
+            bucket_pointer bs =
+              buckets + (pbg - groups) * static_cast<difference_type>(N);
+
+            if (!bs[static_cast<std::ptrdiff_t>(n)].next)
               pbg->bitmask &= reset_bit(n);
           }
         }
@@ -1053,8 +1063,13 @@ namespace boost {
         {
           typename iterator::bucket_pointer p = itb.p;
           typename iterator::bucket_group_pointer pbg = itb.pbg;
-          if (!(pbg->bitmask &=
-                reset_bit(static_cast<std::size_t>(p - pbg->buckets))))
+
+          bucket_pointer bs =
+            buckets + (pbg - groups) * static_cast<difference_type>(group::N);
+
+          // BOOST_ASSERT(bs == pbg->buckets);
+
+          if (!(pbg->bitmask &= reset_bit(static_cast<std::size_t>(p - bs))))
             unlink_group(pbg);
         }
 
