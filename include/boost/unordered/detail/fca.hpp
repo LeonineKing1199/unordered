@@ -469,11 +469,11 @@ namespace boost {
         typedef std::forward_iterator_tag iterator_category;
 
       private:
-        bucket_pointer buckets, p;
-        bucket_group_pointer groups, pbg;
+        bucket_pointer p0, p;
+        bucket_group_pointer pbg;
 
       public:
-        grouped_bucket_iterator() : buckets(), p(), groups(), pbg() {}
+        grouped_bucket_iterator() : p0(), p(), pbg() {}
 
         reference operator*() const BOOST_NOEXCEPT { return dereference(); }
         pointer operator->() const BOOST_NOEXCEPT
@@ -512,9 +512,9 @@ namespace boost {
 
         BOOST_STATIC_CONSTANT(std::size_t, N = bucket_group<Bucket>::N);
 
-        grouped_bucket_iterator(bucket_pointer buckets_, bucket_pointer p_,
-          bucket_group_pointer groups_, bucket_group_pointer pbg_)
-            : buckets(buckets_), p(p_), groups(groups_), pbg(pbg_)
+        grouped_bucket_iterator(
+          bucket_pointer p0_, bucket_pointer p_, bucket_group_pointer pbg_)
+            : p0(p0_), p(p_), pbg(pbg_)
         {
         }
 
@@ -529,20 +529,19 @@ namespace boost {
         {
           difference_type A = static_cast<difference_type>(N);
 
-          bucket_pointer bucket_start = buckets + (p - buckets) / A * A;
-          std::size_t const offset = static_cast<std::size_t>(p - bucket_start);
+          std::size_t const offset = static_cast<std::size_t>(p - p0);
 
           std::size_t n = std::size_t(boost::core::countr_zero(
             pbg->bitmask & reset_first_bits(offset + 1)));
 
           if (n < N) {
-            p = bucket_start + static_cast<difference_type>(n);
+            p = p0 + static_cast<difference_type>(n);
           } else {
+            p0 = p0 + (pbg->next - pbg) * A;
             pbg = pbg->next;
-            bucket_start = buckets + (pbg - groups) * A;
 
             std::ptrdiff_t x = boost::core::countr_zero(pbg->bitmask);
-            p = bucket_start + x;
+            p = p0 + x;
           }
         }
       };
@@ -928,10 +927,10 @@ namespace boost {
 
         iterator at(size_type n) const
         {
-          std::size_t const N = group::N;
+          difference_type const N = static_cast<difference_type>(group::N);
+          difference_type n_ = static_cast<difference_type>(n);
 
-          iterator pbg(buckets, buckets + static_cast<difference_type>(n),
-            groups, groups + static_cast<difference_type>(n / N));
+          iterator pbg(buckets + ((n_ / N) * N), buckets + n_, groups + n_ / N);
 
           return pbg;
         }
