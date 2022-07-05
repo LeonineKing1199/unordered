@@ -1950,6 +1950,7 @@ namespace boost {
         typedef boost::unordered::detail::node_tmp<node_allocator_type> node_tmp;
 
         typedef typename bucket_array_type::bucket_type bucket_type;
+        typedef typename bucket_array_type::group group_type;
 
         typedef typename bucket_array_type::iterator bucket_iterator;
 
@@ -3432,19 +3433,21 @@ namespace boost {
 
         BOOST_TRY
         {
-          boost::unordered::detail::span<bucket_type> bspan = buckets_.raw();
+          boost::unordered::detail::span<group_type> gspan = buckets_.raw();
 
-          bucket_type* pos = bspan.data;
-          std::size_t size = bspan.size;
-          bucket_type* last = pos + size;
+          group_type* pos = gspan.data;
+          std::size_t size = gspan.size;
+          group_type* last = pos + size;
 
           for (; pos != last; ++pos) {
-            bucket_type& b = *pos;
-            for (node_pointer p = b.next; p;) {
-              node_pointer next_p = p->next;
-              transfer_node(p, b, new_buckets);
-              p = next_p;
-              b.next = p;
+            for (std::size_t i = 0; i < group_type::N; ++i) {
+              bucket_type& b = pos->buckets[i];
+              for (node_pointer p = b.next; p;) {
+                node_pointer next_p = p->next;
+                transfer_node(p, b, new_buckets);
+                p = next_p;
+                b.next = p;
+              }
             }
           }
         }
