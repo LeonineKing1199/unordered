@@ -176,7 +176,7 @@ template <class UnorderedContainer> void rehash_tests()
     std::size_t const estimated_bucket_group_size =
       3 * sizeof(void*) + sizeof(std::size_t);
     std::size_t const estimated_bucket_groups =
-      s.bucket_count() / (sizeof(std::size_t) * 8);
+      s.bucket_count() / (sizeof(std::size_t) * 8) + 1;
 
     BOOST_TEST_LT(s.bucket_count(), prev_count + count);
     BOOST_TEST_LE(total_allocation,
