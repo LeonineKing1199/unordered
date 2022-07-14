@@ -1979,6 +1979,7 @@ namespace boost {
         bool adjacent_equivalent(
           Key const& key, node_pointer p1, node_pointer p2)
         {
+          (void) p2;
           BOOST_ASSERT(p1->next() == p2);
            return this->key_eq()(key, extractor::extract(p1->value()));
           // if (boost::is_same<void_pointer, void*>::value) {
