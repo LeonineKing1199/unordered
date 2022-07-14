@@ -1813,7 +1813,7 @@ namespace boost {
 
           void increment() BOOST_NOEXCEPT
           {
-            p = p->next;
+            p = p->next();
             if (!p) {
               p = (++itb)->next;
             }
@@ -1903,7 +1903,7 @@ namespace boost {
 
           void increment() BOOST_NOEXCEPT
           {
-            p = p->next;
+            p = p->next();
             if (!p) {
               p = (++itb)->next;
             }
@@ -1975,6 +1975,33 @@ namespace boost {
         ////////////////////////////////////////////////////////////////////////
         // Data access
 
+        template <class Key>
+        bool adjacent_equivalent(
+          Key const& key, node_pointer p1, node_pointer p2)
+        {
+          BOOST_ASSERT(p1->next() == p2);
+           return this->key_eq()(key, extractor::extract(p1->value()));
+          // if (boost::is_same<void_pointer, void*>::value) {
+          //   if (p1->first_in_group() && !p2->first_in_group()) {
+          //     BOOST_ASSERT(
+          //       this->key_eq()(extractor::extract(p1->value()), key));
+          //     BOOST_ASSERT(this->key_eq()(extractor::extract(p1->value()),
+          //       extractor::extract(p2->value())));
+          //     return true;
+          //   }
+
+          //   if (!p1->first_in_group() && p2->first_in_group()) {
+          //     BOOST_ASSERT(!this->key_eq()(extractor::extract(p1->value()),
+          //       extractor::extract(p2->value())));
+          //     return true;
+          //   }
+
+          //   return p1->first_in_group() == p2->first_in_group();
+          // } else {
+          //   return this->key_eq()(key, extractor::extract(p1->value()));
+          // }
+        }
+
         size_type bucket_count() const { return buckets_.bucket_count(); }
 
         template <class Key>
@@ -1999,7 +2026,7 @@ namespace boost {
 
           bool found = false;
 
-          for (node_pointer pos = itb->next; pos; pos = pos->next) {
+          for (node_pointer pos = itb->next; pos; pos = pos->next()) {
             if (this->key_eq()(k, this->get_key(pos))) {
               ++c;
               found = true;
@@ -2059,7 +2086,7 @@ namespace boost {
           std::size_t count = 0;
           while (n) {
             ++count;
-            n = n->next;
+            n = n->next();
           }
           return count;
         }
@@ -2422,7 +2449,7 @@ namespace boost {
         {
           key_equal const& pred = this->key_eq();
           node_pointer p = itb->next;
-          for (; p; p = p->next) {
+          for (; p; p = p->next()) {
             if (pred(x, extractor::extract(p->value()))) {
               break;
             }
@@ -2455,7 +2482,7 @@ namespace boost {
         {
           std::size_t const key_hash = h(k);
           bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
-          for (node_pointer p = itb->next; p; p = p->next) {
+          for (node_pointer p = itb->next; p; p = p->next()) {
             if (BOOST_LIKELY(pred(k, extractor::extract(p->value())))) {
               return iterator(p, itb);
             }
@@ -2916,16 +2943,49 @@ namespace boost {
         template <class Key> std::size_t erase_key_unique_impl(Key const& k)
         {
           bucket_iterator itb = buckets_.at(buckets_.position(this->hash(k)));
-          node_pointer* pp = this->find_prev(k, itb);
-          if (!pp) {
+          key_equal pred = this->key_eq();
+
+          node_pointer p = itb->next;
+          if (!p) {
             return 0;
           }
 
-          node_pointer p = *pp;
-          buckets_.extract_node_after(itb, pp);
-          this->delete_node(p);
+          if (pred(k, extractor::extract(p->value()))) {
+            itb->next = p->next();
+            this->delete_node(p);
+            if (!itb->next) {
+              buckets_.unlink_bucket(itb);
+            }
+            --size_;
+            return 1;
+          }
+
+          for (; p; p = p->next()) {
+            if (p->next() && pred(k, extractor::extract(p->next()->value()))) {
+              break;
+            }
+          }
+
+          if (!p) {
+            return 0;
+          }
+
+          node_pointer next_p = p->next();
+          p->next(p->next()->next(), p->first_in_group());
+          this->delete_node(next_p);
           --size_;
           return 1;
+
+          // node_pointer* pp = this->find_prev(k, itb);
+          // if (!pp) {
+          //   return 0;
+          // }
+
+          // node_pointer p = *pp;
+          // buckets_.extract_node_after(itb, pp);
+          // this->delete_node(p);
+          // --size_;
+          // return 1;
         }
 
         iterator erase_nodes_range(c_iterator first, c_iterator last)
@@ -2934,36 +2994,78 @@ namespace boost {
             return iterator(last.p, last.itb);
           }
 
-          // though `first` stores of a copy of a pointer to a node, we wish to
-          // mutate the pointers stored internally by the singly-linked list in
-          // each bucket group so we have to retrieve it manually by iterating
-          //
           bucket_iterator itb = first.itb;
-          node_pointer* pp = boost::addressof(itb->next);
-          while (*pp != first.p) {
-            pp = boost::addressof((*pp)->next);
+          node_pointer p = itb->next;
+
+          if (first.p != itb->next) {
+            node_pointer prev_p = p;
+            while (p != first.p) {
+              prev_p = p;
+              p = p->next();
+            }
+
+            while (p) {
+              if (p == last.p) { return iterator(last.p, last.itb); }
+              node_pointer next_p = p->next();
+              prev_p->next(next_p, prev_p->first_in_group());
+              if (next_p) {
+                next_p->first_in_group(p->first_in_group());
+              };
+
+              this->delete_node(p);
+              --size_;
+
+              p = next_p;
+            }
+
+            ++itb;
+            p = itb->next;
           }
 
-          while (*pp != last.p) {
-            node_pointer p = *pp;
-            *pp = (*pp)->next;
-
+          while (p != last.p) {
+            node_pointer next_p = p->next();
+            if (next_p) {
+              next_p->first_in_group(p->first_in_group());
+            }
             this->delete_node(p);
             --size_;
 
+            p = next_p;
 
-            bool const at_end = !(*pp);
-            bool const is_empty_bucket = !itb->next;
-
-            if (at_end) {
-              if (is_empty_bucket) {
-                buckets_.unlink_bucket(itb++);
-              } else {
-                ++itb;
-              }
-              pp = boost::addressof(itb->next);
+            itb->next = p;
+            if (!itb->next) {
+              buckets_.unlink_bucket(itb++);
+              p = itb->next;
+            } else {
+              p->first_in_group(true);
+              itb->next = p;
             }
           }
+
+          // node_pointer* pp = boost::addressof(itb->next);
+          // while (*pp != first.p) {
+          //   pp = boost::addressof((*pp)->next);
+          // }
+
+          // while (*pp != last.p) {
+          //   node_pointer p = *pp;
+          //   *pp = (*pp)->next;
+
+          //   this->delete_node(p);
+          //   --size_;
+
+          //   bool const at_end = !(*pp);
+          //   bool const is_empty_bucket = !itb->next;
+
+          //   if (at_end) {
+          //     if (is_empty_bucket) {
+          //       buckets_.unlink_bucket(itb++);
+          //     } else {
+          //       ++itb;
+          //     }
+          //     pp = boost::addressof(itb->next);
+          //   }
+          // }
 
           return iterator(last.p, last.itb);
         }
@@ -3293,23 +3395,75 @@ namespace boost {
         {
           std::size_t deleted_count = 0;
 
+          key_equal pred = this->key_eq();
           bucket_iterator itb = buckets_.at(buckets_.position(this->hash(k)));
-          node_pointer* pp = this->find_prev(k, itb);
-          if (pp) {
-            while (*pp && this->key_eq()(this->get_key(*pp), k)) {
-              node_pointer p = *pp;
-              *pp = (*pp)->next;
+          node_pointer p = itb->next;
+          node_pointer prev_p = p;
 
+          bool const empty_bucket = !p;
+          if (empty_bucket) {
+            return 0;
+          }
+
+          while (p && !pred(k, extractor::extract(p->value()))) {
+            prev_p = p;
+            p = p->next();
+          }
+
+          bool const missing_key = !p;
+          if (missing_key) {
+            return 0;
+          }
+
+          bool const at_bucket_start = (p == itb->next);
+          if (at_bucket_start) {
+            while (p && adjacent_equivalent(k, p, p->next())) {
+              node_pointer next_p = p->next();
+              itb->next = next_p;
               this->delete_node(p);
               --size_;
               ++deleted_count;
+              p = next_p;
             }
 
             if (!itb->next) {
               buckets_.unlink_bucket(itb);
             }
+            return deleted_count;
           }
+
+          while (p) {
+            if (adjacent_equivalent(k, p, p->next())) {
+              node_pointer old = p;
+              p = p->next();
+              this->delete_node(old);
+              prev_p->next(p, prev_p->first_in_group());
+              --size_;
+              ++deleted_count;
+            } else {
+              prev_p = p;
+              p = p->next();
+            }
+          }
+
           return deleted_count;
+
+          // node_pointer* pp = this->find_prev(k, itb);
+          // if (pp) {
+          //   while (*pp && this->key_eq()(this->get_key(*pp), k)) {
+          //     node_pointer p = *pp;
+          //     *pp = (*pp)->next;
+
+          //     this->delete_node(p);
+          //     --size_;
+          //     ++deleted_count;
+          //   }
+
+          //   if (!itb->next) {
+          //     buckets_.unlink_bucket(itb);
+          //   }
+          // }
+          // return deleted_count;
         }
 
         std::size_t erase_key_equiv(const_key_type& k)
@@ -3375,13 +3529,24 @@ namespace boost {
         for (; itb != last;) {
           bucket_iterator next_itb = itb;
           ++next_itb;
-          node_pointer* pp = boost::addressof(itb->next);
-          while (*pp) {
-            node_pointer p = *pp;
-            buckets_.extract_node_after(itb, pp);
+
+          node_pointer p = itb->next;
+          while(p) {
+            node_pointer next_p = p->next();
             this->delete_node(p);
             --size_;
+            p = next_p;
           }
+          
+          // node_pointer* pp = boost::addressof(itb->next);
+          // while (*pp) {
+          //   node_pointer p = *pp;
+          //   buckets_.extract_node_after(itb, pp);
+          //   this->delete_node(p);
+          //   --size_;
+          // }
+          itb->next = node_pointer();
+          buckets_.unlink_bucket(itb);
           itb = next_itb;
         }
       }
@@ -3441,7 +3606,13 @@ namespace boost {
           for (; pos != last; ++pos) {
             bucket_type& b = *pos;
             for (node_pointer p = b.next; p;) {
-              node_pointer next_p = p->next;
+              node_pointer next_p = p->next();
+
+              if (next_p && p->first_in_group() && !next_p->first_in_group()) {
+                p->first_in_group(false);
+                next_p->first_in_group(true);
+              }
+
               transfer_node(p, b, new_buckets);
               p = next_p;
               b.next = p;
@@ -3454,7 +3625,7 @@ namespace boost {
                pos != new_buckets.end(); ++pos) {
             bucket_type& b = *pos;
             for (node_pointer p = b.next; p;) {
-              node_pointer next_p = p->next;
+              node_pointer next_p = p->next();
               delete_node(p);
               --size_;
               p = next_p;

@@ -137,25 +137,39 @@ namespace boost {
 
       template <class ValueType, class VoidPtr> struct node
       {
+      public:
         typedef ValueType value_type;
         typedef typename boost::pointer_traits<VoidPtr>::template rebind_to<
           node>::type node_pointer;
 
-        node_pointer next;
+      private:
+        node_pointer next_;
         typename boost::aligned_storage<sizeof(value_type),
-          boost::alignment_of<value_type>::value>::type buf;
+          boost::alignment_of<value_type>::value>::type buf_;
 
-        node() BOOST_NOEXCEPT : next(), buf() {}
+      public:
+        node() BOOST_NOEXCEPT : next_(), buf_() {}
 
         value_type* value_ptr() BOOST_NOEXCEPT
         {
-          return reinterpret_cast<value_type*>(buf.address());
+          return reinterpret_cast<value_type*>(buf_.address());
         }
 
         value_type& value() BOOST_NOEXCEPT
         {
-          return *reinterpret_cast<value_type*>(buf.address());
+          return *reinterpret_cast<value_type*>(buf_.address());
         }
+
+        node_pointer next() const BOOST_NOEXCEPT { return next_; }
+        void next(node_pointer next, bool const first) BOOST_NOEXCEPT
+        {
+          next_ = next;
+          (void)first;
+        }
+
+        bool first_in_group() const BOOST_NOEXCEPT { return true; }
+
+        void first_in_group(bool x) BOOST_NOEXCEPT { (void)x; }
       };
 
       template <class Node, class VoidPtr> struct bucket
@@ -352,7 +366,7 @@ namespace boost {
           return p == x.p;
         }
 
-        void increment() BOOST_NOEXCEPT { p = p->next; }
+        void increment() BOOST_NOEXCEPT { p = p->next(); }
 
         node_pointer p;
       };
@@ -422,7 +436,7 @@ namespace boost {
           return p == x.p;
         }
 
-        void increment() BOOST_NOEXCEPT { p = p->next; }
+        void increment() BOOST_NOEXCEPT { p = p->next(); }
 
         node_pointer p;
       };
@@ -730,7 +744,7 @@ namespace boost {
         {
           this->append_bucket_group(itb);
 
-          p->next = itb->next;
+          p->next(itb->next, p->first_in_group());
           itb->next = p;
         }
 
@@ -740,30 +754,48 @@ namespace boost {
           this->append_bucket_group(itb);
 
           if (hint) {
-            p->next = hint->next;
-            hint->next = p;
+            p->next(hint->next(), true);
+            hint->next(p, false);
           } else {
-            p->next = itb->next;
+            p->next(itb->next, true);
             itb->next = p;
           }
         }
 
         void extract_node(iterator itb, node_pointer p) BOOST_NOEXCEPT
         {
-          node_pointer* pp = boost::addressof(itb->next);
-          while ((*pp) != p)
-            pp = boost::addressof((*pp)->next);
-          *pp = p->next;
-          if (!itb->next)
-            unlink_bucket(itb);
+          node_pointer pos = itb->next;
+          if (pos == p) {
+            node_pointer next = pos->next();
+            itb->next = next;
+            if (!next) {
+              unlink_bucket(itb);
+            } else {
+              next->first_in_group(true);
+            }
+          } else {
+            while (pos->next() != p) {
+              pos = pos->next();
+            }
+
+            node_pointer next = pos->next()->next();
+            pos->next(next, true);
+          }
+
+          // node_pointer* pp = boost::addressof(itb->next);
+          // while ((*pp) != p)
+          //  pp = boost::addressof((*pp)->next());
+          // *pp = p->next();
+          // if (!itb->next)
+          //   unlink_bucket(itb);
         }
 
-        void extract_node_after(iterator itb, node_pointer* pp) BOOST_NOEXCEPT
-        {
-          *pp = (*pp)->next;
-          if (!itb->next)
-            unlink_bucket(itb);
-        }
+        // void extract_node_after(iterator itb, node_pointer* pp) BOOST_NOEXCEPT
+        // {
+        //   *pp = (*pp)->next;
+        //   if (!itb->next)
+        //     unlink_bucket(itb);
+        // }
 
         void unlink_empty_buckets() BOOST_NOEXCEPT
         {
