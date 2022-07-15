@@ -1979,28 +1979,31 @@ namespace boost {
         bool adjacent_equivalent(
           Key const& key, node_pointer p1, node_pointer p2)
         {
-          (void) p2;
           BOOST_ASSERT(p1->next() == p2);
-           return this->key_eq()(key, extractor::extract(p1->value()));
-          // if (boost::is_same<void_pointer, void*>::value) {
-          //   if (p1->first_in_group() && !p2->first_in_group()) {
-          //     BOOST_ASSERT(
-          //       this->key_eq()(extractor::extract(p1->value()), key));
-          //     BOOST_ASSERT(this->key_eq()(extractor::extract(p1->value()),
-          //       extractor::extract(p2->value())));
-          //     return true;
-          //   }
 
-          //   if (!p1->first_in_group() && p2->first_in_group()) {
-          //     BOOST_ASSERT(!this->key_eq()(extractor::extract(p1->value()),
-          //       extractor::extract(p2->value())));
-          //     return true;
-          //   }
+          if (p1 && !p2) {
+            return true;
+          }
 
-          //   return p1->first_in_group() == p2->first_in_group();
-          // } else {
-          //   return this->key_eq()(key, extractor::extract(p1->value()));
-          // }
+          if (boost::is_same<void_pointer, void*>::value) {
+            if (p1->first_in_group() && !p2->first_in_group()) {
+              // BOOST_ASSERT(
+              //   this->key_eq()(extractor::extract(p1->value()), key));
+              // BOOST_ASSERT(this->key_eq()(extractor::extract(p1->value()),
+              //   extractor::extract(p2->value())));
+              return true;
+            }
+
+            if (!p1->first_in_group() && p2->first_in_group()) {
+              // BOOST_ASSERT(!this->key_eq()(extractor::extract(p1->value()),
+              //   extractor::extract(p2->value())));
+              return true;
+            }
+
+            return p1->first_in_group() == p2->first_in_group();
+          } else {
+            return this->key_eq()(key, extractor::extract(p1->value()));
+          }
         }
 
         size_type bucket_count() const { return buckets_.bucket_count(); }
@@ -2445,13 +2448,16 @@ namespace boost {
         // Find Node
 
         template <class Key>
-        node_pointer find_node_impl(
-          Key const& x, bucket_iterator itb) const
+        node_pointer find_node_impl(Key const& x, bucket_iterator itb) const
         {
           key_equal const& pred = this->key_eq();
           node_pointer p = itb->next;
+          if (p) {
+            BOOST_ASSERT(p->first_in_group());
+          }
           for (; p; p = p->next()) {
             if (pred(x, extractor::extract(p->value()))) {
+              BOOST_ASSERT(p->first_in_group());
               break;
             }
           }
@@ -3224,17 +3230,32 @@ namespace boost {
           node_tmp a(n, this->node_alloc());
           const_key_type& k = this->get_key(a.node_);
           std::size_t key_hash = this->hash(k);
-          bucket_iterator itb =
-            buckets_.at(buckets_.position(key_hash));
+          bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
           node_pointer hint = this->find_node_impl(k, itb);
+          // if (hint) {
+          //   if (this->key_eq()(extractor::extract(n->value()),
+          //         extractor::extract(hint->value()))) {
+          //     if (boost::is_same<node_pointer, node_type*>::value) {
+
+          //       BOOST_ASSERT(hint->first_in_group());
+          //     }
+          //   }
+          // }
 
           if (size_ + 1 > max_load_) {
             this->reserve(size_ + 1);
             itb = buckets_.at(buckets_.position(key_hash));
           }
+
           node_pointer p = a.release();
           buckets_.insert_node_hint(itb, p, hint);
           ++size_;
+
+          itb = buckets_.at(buckets_.position(key_hash));
+          hint = this->find_node_impl(k, itb);
+          if (boost::is_same<node_pointer, node_type*>::value) {
+            BOOST_ASSERT(hint->first_in_group());
+          }
           return iterator(p, itb);
         }
 

@@ -129,6 +129,7 @@ to normal separate chaining implementations.
 
 #include <boost/config.hpp>
 
+#include <iostream>
 #include <iterator>
 
 namespace boost {
@@ -161,15 +162,72 @@ namespace boost {
         }
 
         node_pointer next() const BOOST_NOEXCEPT { return next_; }
-        void next(node_pointer next, bool const first) BOOST_NOEXCEPT
+        void next(node_pointer n, bool const first) BOOST_NOEXCEPT
         {
-          next_ = next;
+          next_ = n;
           (void)first;
         }
 
         bool first_in_group() const BOOST_NOEXCEPT { return true; }
 
         void first_in_group(bool x) BOOST_NOEXCEPT { (void)x; }
+      };
+
+      template <class ValueType> struct node<ValueType, void*>
+      {
+      public:
+        typedef ValueType value_type;
+        typedef
+          typename boost::pointer_traits<void*>::template rebind_to<node>::type
+            node_pointer;
+
+      private:
+        node_pointer next_;
+        typename boost::aligned_storage<sizeof(value_type),
+          boost::alignment_of<value_type>::value>::type buf_;
+
+      public:
+        node() BOOST_NOEXCEPT : next_(), buf_() {}
+
+        value_type* value_ptr() BOOST_NOEXCEPT
+        {
+          return reinterpret_cast<value_type*>(buf_.address());
+        }
+
+        value_type& value() BOOST_NOEXCEPT
+        {
+          return *reinterpret_cast<value_type*>(buf_.address());
+        }
+
+        node_pointer next() const BOOST_NOEXCEPT
+        {
+          return reinterpret_cast<node_pointer>(
+            reinterpret_cast<boost::uintptr_t>(next_) &
+            ~boost::ulong_long_type(1));
+        }
+
+        void next(node_pointer n, bool const first) BOOST_NOEXCEPT
+        {
+          next_ = reinterpret_cast<node_pointer>(
+            reinterpret_cast<boost::uintptr_t>(n) |
+            boost::ulong_long_type(first ? 1 : 0));
+        }
+
+        bool first_in_group() const BOOST_NOEXCEPT
+        {
+          return reinterpret_cast<boost::uintptr_t>(next_) &
+                 boost::ulong_long_type(1);
+        }
+
+        void first_in_group(bool x) BOOST_NOEXCEPT
+        {
+          boost::uintptr_t addr = reinterpret_cast<boost::uintptr_t>(next_);
+          boost::uintptr_t n = x;
+
+          addr = (addr & ~boost::ulong_long_type(1)) | n;
+
+          next_ = reinterpret_cast<node_pointer>(addr);
+        }
       };
 
       template <class Node, class VoidPtr> struct bucket
@@ -744,7 +802,7 @@ namespace boost {
         {
           this->append_bucket_group(itb);
 
-          p->next(itb->next, p->first_in_group());
+          p->next(itb->next, true);
           itb->next = p;
         }
 
@@ -754,11 +812,17 @@ namespace boost {
           this->append_bucket_group(itb);
 
           if (hint) {
-            p->next(hint->next(), true);
-            hint->next(p, false);
+            p->next(hint->next(), false);
+            hint->next(p, true);
+
+            BOOST_ASSERT(hint->first_in_group());
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              BOOST_ASSERT(!p->first_in_group());
+            }
           } else {
             p->next(itb->next, true);
             itb->next = p;
+            BOOST_ASSERT(p->first_in_group());
           }
         }
 
@@ -790,7 +854,8 @@ namespace boost {
           //   unlink_bucket(itb);
         }
 
-        // void extract_node_after(iterator itb, node_pointer* pp) BOOST_NOEXCEPT
+        // void extract_node_after(iterator itb, node_pointer* pp)
+        // BOOST_NOEXCEPT
         // {
         //   *pp = (*pp)->next;
         //   if (!itb->next)
