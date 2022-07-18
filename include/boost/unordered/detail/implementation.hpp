@@ -3232,15 +3232,6 @@ namespace boost {
           std::size_t key_hash = this->hash(k);
           bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
           node_pointer hint = this->find_node_impl(k, itb);
-          // if (hint) {
-          //   if (this->key_eq()(extractor::extract(n->value()),
-          //         extractor::extract(hint->value()))) {
-          //     if (boost::is_same<node_pointer, node_type*>::value) {
-
-          //       BOOST_ASSERT(hint->first_in_group());
-          //     }
-          //   }
-          // }
 
           if (size_ + 1 > max_load_) {
             this->reserve(size_ + 1);
@@ -3250,12 +3241,6 @@ namespace boost {
           node_pointer p = a.release();
           buckets_.insert_node_hint(itb, p, hint);
           ++size_;
-
-          itb = buckets_.at(buckets_.position(key_hash));
-          hint = this->find_node_impl(k, itb);
-          if (boost::is_same<node_pointer, node_type*>::value) {
-            BOOST_ASSERT(hint->first_in_group());
-          }
           return iterator(p, itb);
         }
 
@@ -3512,6 +3497,7 @@ namespace boost {
             node_allocator_type alloc = this->node_alloc();
             node_tmp tmp(detail::func::construct_node(alloc, value), alloc);
             node_pointer hint = this->find_node_impl(key, itb);
+
             buckets_.insert_node_hint(itb, tmp.release(), hint);
             ++size_;
           }
@@ -3606,7 +3592,6 @@ namespace boost {
         if (num_elements > max_load_) {
           std::size_t const num_buckets = static_cast<std::size_t>(
             1.0f + std::ceil(static_cast<float>(num_elements) / mlf_));
-
           this->rehash_impl(num_buckets);
         }
       }
@@ -3617,6 +3602,7 @@ namespace boost {
         bucket_array_type new_buckets(
           num_buckets, buckets_.get_node_allocator());
 
+        node_pointer last_transferred = node_pointer();
         BOOST_TRY
         {
           boost::unordered::detail::span<bucket_type> bspan = buckets_.raw();
@@ -3625,24 +3611,43 @@ namespace boost {
           std::size_t size = bspan.size;
           bucket_type* last = pos + size;
 
+
           for (; pos != last; ++pos) {
             bucket_type& b = *pos;
+
             for (node_pointer p = b.next; p;) {
               node_pointer next_p = p->next();
-
-              if (next_p && p->first_in_group() && !next_p->first_in_group()) {
-                p->first_in_group(false);
-                next_p->first_in_group(true);
+              bool is_first = false;
+              if (next_p) {
+                if (p->first_in_group() && next_p->first_in_group()) {
+                  is_first = true;
+                } else if (p->first_in_group() && !next_p->first_in_group()) {
+                  is_first = false;
+                } else if (!p->first_in_group() && !next_p->first_in_group()) {
+                  is_first = false;
+                } else {
+                  BOOST_ASSERT(!p->first_in_group());
+                  BOOST_ASSERT(next_p->first_in_group());
+                  is_first = true;
+                }
+              } else {
+                is_first = true;
               }
 
               transfer_node(p, b, new_buckets);
+              p->first_in_group(is_first);
+              last_transferred = p;
               p = next_p;
               b.next = p;
+              if (b.next) {b.next->first_in_group(true);}
             }
           }
         }
         BOOST_CATCH(...)
         {
+          (void) last_transferred;
+          if (last_transferred) { last_transferred->first_in_group(true); }
+
           for (bucket_iterator pos = new_buckets.begin();
                pos != new_buckets.end(); ++pos) {
             bucket_type& b = *pos;

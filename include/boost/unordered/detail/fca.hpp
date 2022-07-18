@@ -810,12 +810,17 @@ namespace boost {
           iterator itb, node_pointer p, node_pointer hint) BOOST_NOEXCEPT
         {
           this->append_bucket_group(itb);
+          if (itb->next) {
+            BOOST_ASSERT(itb->next->first_in_group());
+          }
 
           if (hint) {
+            // BOOST_ASSERT(hint->first_in_group());
+
             p->next(hint->next(), false);
             hint->next(p, true);
 
-            BOOST_ASSERT(hint->first_in_group());
+            // BOOST_ASSERT(hint->first_in_group());
             if (boost::is_same<node_pointer, node_type*>::value) {
               BOOST_ASSERT(!p->first_in_group());
             }
@@ -823,6 +828,7 @@ namespace boost {
             p->next(itb->next, true);
             itb->next = p;
             BOOST_ASSERT(p->first_in_group());
+            BOOST_ASSERT(itb->next->first_in_group());
           }
         }
 
