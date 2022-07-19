@@ -2249,7 +2249,14 @@ namespace boost {
 
             bucket_iterator itb =
               buckets_.at(buckets_.position(key_hash));
-            buckets_.insert_node(itb, b.release());
+
+            node_pointer hint = this->find_node_impl(k, itb);
+            if (hint) {
+              buckets_.insert_node_hint(itb, b.release(), hint);
+            } else {
+              buckets_.insert_node(itb, b.release());
+            }
+
             ++size_;
           }
         }
@@ -2257,7 +2264,36 @@ namespace boost {
         ////////////////////////////////////////////////////////////////////////
         // Delete/destruct
 
-        ~table() { delete_buckets(); }
+        ~table()
+        {
+          // key_equal const& pred = this->key_eq();
+          // boost::unordered::detail::span<bucket_type> bspan = buckets_.raw();
+          // for (bucket_type* pos = bspan.begin(); pos < bspan.end(); ++pos) {
+          //   bucket_type& bucket = *pos;
+          //   if (!bucket.next) {
+          //     continue;
+          //   }
+          //   BOOST_ASSERT(bucket.next->first_in_group());
+
+          //   node_pointer p = bucket.next;
+          //   while (p) {
+          //     BOOST_ASSERT(p->first_in_group());
+          //     node_pointer np = p->next();
+          //     if (np && pred(this->get_key(p), this->get_key(np))) {
+          //       while (np && pred(this->get_key(p), this->get_key(np))) {
+          //         BOOST_ASSERT(p != np);
+          //         if (boost::is_same<node_pointer, node_type*>::value) {
+          //           BOOST_ASSERT(!np->first_in_group());
+          //         }
+          //         np = np->next();
+          //       }
+          //     }
+          //     p = np;
+          //   }
+          // }
+
+          delete_buckets();
+        }
 
         void delete_node(node_pointer p)
         {
@@ -2531,7 +2567,7 @@ namespace boost {
         void transfer_node(
           node_pointer p, bucket_type&, bucket_array_type& new_buckets)
         {
-          const_key_type& key = extractor::extract(p->value());
+          const_key_type& key = this->get_key(p);
           std::size_t const h = this->hash(key);
           bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
           new_buckets.insert_node(itnewb, p);
@@ -3015,7 +3051,7 @@ namespace boost {
               if (p == last.p) { return iterator(last.p, last.itb); }
               node_pointer next_p = p->next();
               prev_p->next(next_p, prev_p->first_in_group());
-              if (next_p) {
+              if (next_p && !next_p->first_in_group()) {
                 next_p->first_in_group(p->first_in_group());
               };
 
@@ -3029,23 +3065,31 @@ namespace boost {
             p = itb->next;
           }
 
+          if (p) {
+            (void) p;
+            BOOST_ASSERT(p == itb->next);
+            BOOST_ASSERT(p->first_in_group());
+          }
+
           while (p != last.p) {
             node_pointer next_p = p->next();
-            if (next_p) {
-              next_p->first_in_group(p->first_in_group());
-            }
+            // if (next_p) {
+            //   next_p->first_in_group(next_p->first_in_group());
+            // }
             this->delete_node(p);
             --size_;
 
             p = next_p;
-
             itb->next = p;
             if (!itb->next) {
               buckets_.unlink_bucket(itb++);
               p = itb->next;
+              if (p) {
+                (void) p;
+                BOOST_ASSERT(p->first_in_group());
+              }
             } else {
-              p->first_in_group(true);
-              itb->next = p;
+              itb->next->first_in_group(true);
             }
           }
 
@@ -3611,35 +3655,48 @@ namespace boost {
           std::size_t size = bspan.size;
           bucket_type* last = pos + size;
 
-
           for (; pos != last; ++pos) {
             bucket_type& b = *pos;
 
+            int count = 0;
             for (node_pointer p = b.next; p;) {
-              node_pointer next_p = p->next();
-              bool is_first = false;
-              if (next_p) {
-                if (p->first_in_group() && next_p->first_in_group()) {
-                  is_first = true;
-                } else if (p->first_in_group() && !next_p->first_in_group()) {
-                  is_first = false;
-                } else if (!p->first_in_group() && !next_p->first_in_group()) {
-                  is_first = false;
-                } else {
-                  BOOST_ASSERT(!p->first_in_group());
-                  BOOST_ASSERT(next_p->first_in_group());
-                  is_first = true;
-                }
-              } else {
-                is_first = true;
-              }
+              ++count;
+              if (count >= 100000) { BOOST_ASSERT(false); }
 
-              transfer_node(p, b, new_buckets);
-              p->first_in_group(is_first);
-              last_transferred = p;
+              node_pointer next_p = p->next();
+
+              const_key_type& key = this->get_key(p);
+              std::size_t const h = this->hash(key);
+              bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
+              new_buckets.append_bucket_group(itnewb);
+
+              node_pointer new_p = itnewb->next;
+              if (!new_p) {
+                BOOST_ASSERT(p->first_in_group());
+                itnewb->next = p;
+                itnewb->next->next(node_pointer(), p->first_in_group());
+                BOOST_ASSERT(!itnewb->next->next());
+                BOOST_ASSERT(itnewb->next->first_in_group());
+              } else {
+                while (new_p->next()) {
+                  new_p = new_p->next();
+                  ++count;
+                  if (count >= 100000) { BOOST_ASSERT(false); }
+                }
+
+                BOOST_ASSERT(new_p);
+                BOOST_ASSERT(!new_p->next());
+                BOOST_ASSERT(itnewb->next->first_in_group());
+
+                p->next(new_p->next(), p->first_in_group());
+                new_p->next(p, new_p->first_in_group());
+              }
+              // transfer_node(p, b, new_buckets);
+              // p->first_in_group(is_first);
               p = next_p;
               b.next = p;
-              if (b.next) {b.next->first_in_group(true);}
+              last_transferred = p;
+              // if (b.next) {b.next->first_in_group(true);}
             }
           }
         }

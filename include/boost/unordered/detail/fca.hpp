@@ -815,10 +815,8 @@ namespace boost {
           }
 
           if (hint) {
-            // BOOST_ASSERT(hint->first_in_group());
-
             p->next(hint->next(), false);
-            hint->next(p, true);
+            hint->next(p, hint->first_in_group());
 
             // BOOST_ASSERT(hint->first_in_group());
             if (boost::is_same<node_pointer, node_type*>::value) {
@@ -849,7 +847,10 @@ namespace boost {
             }
 
             node_pointer next = pos->next()->next();
-            pos->next(next, true);
+            pos->next(next, pos->first_in_group());
+            if (next) {
+              next->first_in_group(p->first_in_group());
+            }
           }
 
           // node_pointer* pp = boost::addressof(itb->next);
