@@ -203,20 +203,20 @@ namespace boost {
         {
           return reinterpret_cast<node_pointer>(
             reinterpret_cast<boost::uintptr_t>(next_) &
-            ~boost::ulong_long_type(1));
+            ~boost::uintptr_t(1));
         }
 
         void next(node_pointer n, bool const first) BOOST_NOEXCEPT
         {
           next_ = reinterpret_cast<node_pointer>(
             reinterpret_cast<boost::uintptr_t>(n) |
-            boost::ulong_long_type(first ? 1 : 0));
+            boost::uintptr_t(first ? 1 : 0));
         }
 
         bool first_in_group() const BOOST_NOEXCEPT
         {
           return reinterpret_cast<boost::uintptr_t>(next_) &
-                 boost::ulong_long_type(1);
+                 boost::uintptr_t(1);
         }
 
         void first_in_group(bool x) BOOST_NOEXCEPT
@@ -224,7 +224,7 @@ namespace boost {
           boost::uintptr_t addr = reinterpret_cast<boost::uintptr_t>(next_);
           boost::uintptr_t n = x;
 
-          addr = (addr & ~boost::ulong_long_type(1)) | n;
+          addr = (addr & ~boost::uintptr_t(1)) | n;
 
           next_ = reinterpret_cast<node_pointer>(addr);
         }
