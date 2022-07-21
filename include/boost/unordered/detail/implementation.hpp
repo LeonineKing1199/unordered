@@ -2012,9 +2012,27 @@ namespace boost {
         iterator next_group(Key const& k, c_iterator n) const
         {
           c_iterator last = this->end();
-          while (n != last && this->key_eq()(k, extractor::extract(*n))) {
-            ++n;
+          BOOST_ASSERT(n == last || (n != last && this->key_eq()(k,
+                                                    extractor::extract(*n))));
+          // while (n != last && this->key_eq()(k, extractor::extract(*n))) {
+          //   ++n;
+          // }
+          while (n != last) {
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              if (n.p->first_in_group() &&
+                  !this->key_eq()(k, extractor::extract(*n))) {
+                break;
+              }
+              ++n;
+            } else {
+              if (this->key_eq()(k, extractor::extract(*n))) {
+                ++n;
+              } else {
+                break;
+              }
+            }
           }
+
           return iterator(n.p, n.itb);
         }
 
@@ -2031,6 +2049,17 @@ namespace boost {
           bool found = false;
 
           for (node_pointer pos = itb->next; pos; pos = pos->next()) {
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              if (found) {
+                if (pos->first_in_group()) {
+                  break;
+                } else {
+                  ++c;
+                  continue;
+                }
+              }
+            }
+
             if (this->key_eq()(k, this->get_key(pos))) {
               ++c;
               found = true;
@@ -2488,10 +2517,15 @@ namespace boost {
         {
           key_equal const& pred = this->key_eq();
           node_pointer p = itb->next;
-          if (p) {
-            BOOST_ASSERT(p->first_in_group());
-          }
+          BOOST_ASSERT(!p || (p && p->first_in_group()));
+
           for (; p; p = p->next()) {
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              if (!p->first_in_group()) {
+                continue;
+              }
+            }
+
             if (pred(x, extractor::extract(p->value()))) {
               BOOST_ASSERT(p->first_in_group());
               break;
@@ -2526,6 +2560,10 @@ namespace boost {
           std::size_t const key_hash = h(k);
           bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
           for (node_pointer p = itb->next; p; p = p->next()) {
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              if (!p->first_in_group()) { continue; }
+            }
+
             if (BOOST_LIKELY(pred(k, extractor::extract(p->value())))) {
               return iterator(p, itb);
             }
@@ -2534,19 +2572,19 @@ namespace boost {
           return this->end();
         }
 
-        template <class Key>
-        node_pointer* find_prev(Key const& key, bucket_iterator itb)
-        {
-          key_equal pred = this->key_eq();
-          for (node_pointer* pp = boost::addressof(itb->next); *pp;
-               pp = boost::addressof((*pp)->next)) {
-            if (pred(key, extractor::extract((*pp)->value()))) {
-              return pp;
-            }
-          }
-          typedef node_pointer* node_pointer_pointer;
-          return node_pointer_pointer();
-        }
+        // template <class Key>
+        // node_pointer* find_prev(Key const& key, bucket_iterator itb)
+        // {
+        //   key_equal pred = this->key_eq();
+        //   for (node_pointer* pp = boost::addressof(itb->next); *pp;
+        //        pp = boost::addressof((*pp)->next)) {
+        //     if (pred(key, extractor::extract((*pp)->value()))) {
+        //       return pp;
+        //     }
+        //   }
+        //   typedef node_pointer* node_pointer_pointer;
+        //   return node_pointer_pointer();
+        // }
 
         // Extract and erase
 
