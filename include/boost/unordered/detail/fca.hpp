@@ -848,7 +848,7 @@ namespace boost {
 
             node_pointer next = pos->next()->next();
             pos->next(next, pos->first_in_group());
-            if (next) {
+            if (next && !next->first_in_group()) {
               next->first_in_group(p->first_in_group());
             }
           }
