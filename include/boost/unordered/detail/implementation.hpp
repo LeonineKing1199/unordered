@@ -2293,7 +2293,7 @@ namespace boost {
         ////////////////////////////////////////////////////////////////////////
         // Delete/destruct
 
-        ~table()
+        void verify()
         {
           // key_equal const& pred = this->key_eq();
           // boost::unordered::detail::span<bucket_type> bspan = buckets_.raw();
@@ -2306,6 +2306,17 @@ namespace boost {
 
           //   node_pointer p = bucket.next;
           //   while (p) {
+          //     // if (!p->first_in_group()) {
+          //     //   std::cout << "problematic bucket dump:" << std::endl;
+          //     //   node_pointer copy = bucket.next;
+          //     //   while (copy) {
+          //     //     std::cout << std::boolalpha << "Key: " << this->get_key(copy)
+          //     //               << ", first: " << copy->first_in_group()
+          //     //               << std::endl;
+          //     //     copy = copy->next();
+          //     //   }
+          //     //   std::cout << std::endl;
+          //     // }
           //     BOOST_ASSERT(p->first_in_group());
           //     node_pointer np = p->next();
           //     if (np && pred(this->get_key(p), this->get_key(np))) {
@@ -2320,7 +2331,11 @@ namespace boost {
           //     p = np;
           //   }
           // }
+        }
 
+        ~table()
+        {
+          this->verify();
           delete_buckets();
         }
 
@@ -2525,8 +2540,7 @@ namespace boost {
                 continue;
               }
             }
-
-            if (pred(x, extractor::extract(p->value()))) {
+            if (pred(x, this->get_key(p))) {
               BOOST_ASSERT(p->first_in_group());
               break;
             }
