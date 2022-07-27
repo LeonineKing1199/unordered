@@ -2540,9 +2540,27 @@ namespace boost {
                 continue;
               }
             }
+        template <class Key>
+        node_pointer find_node_impl(Key const& x, bucket_iterator itb) const
+        {
+          key_equal const& pred = this->key_eq();
+          node_pointer p = itb->next;
+          BOOST_ASSERT(!p || (p && p->first_in_group()));
+
+          for (; p;) {
             if (pred(x, this->get_key(p))) {
               BOOST_ASSERT(p->first_in_group());
               break;
+            }
+
+            if (boost::is_same<node_pointer, node_type*>::value) {
+              while ((p = p->next())) {
+                if (p->first_in_group()) {
+                  break;
+                }
+              }
+            } else {
+              p = p->next();
             }
           }
           return p;
