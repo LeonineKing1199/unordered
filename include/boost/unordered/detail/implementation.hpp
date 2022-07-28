@@ -2527,8 +2527,24 @@ namespace boost {
 
         // Find Node
 
+        template <class Key, class IsEquiv, class UsesRawPointers>
+        node_pointer find_node_impl_dispatch(
+          Key const& x, bucket_iterator itb, IsEquiv, UsesRawPointers) const
+        {
+          key_equal const& pred = this->key_eq();
+          node_pointer p = itb->next;
+
+          for (; p; p = p->next()) {
+            if (pred(x, this->get_key(p))) {
+              break;
+            }
+          }
+          return p;
+        }
+
         template <class Key>
-        node_pointer find_node_impl(Key const& x, bucket_iterator itb) const
+        node_pointer find_node_impl_dispatch(
+          Key const& x, bucket_iterator itb, true_type, true_type) const
         {
           key_equal const& pred = this->key_eq();
           node_pointer p = itb->next;
@@ -2540,19 +2556,24 @@ namespace boost {
               break;
             }
 
-            if (boost::is_same<node_pointer, node_type*>::value) {
-              p = p->next();
-              while(p) {
-                if (p->first_in_group()) {
-                  break;
-                }
-                p = p->next();
+            p = p->next();
+            while (p) {
+              if (p->first_in_group()) {
+                break;
               }
-            } else {
               p = p->next();
             }
           }
           return p;
+        }
+
+        template <class Key>
+        node_pointer find_node_impl(Key const& x, bucket_iterator itb) const
+        {
+          typedef typename Types::is_equiv is_equiv;
+          typedef typename Types::uses_raw_pointers uses_raw_pointers;
+          return this->find_node_impl_dispatch(
+            x, itb, is_equiv(), uses_raw_pointers());
         }
 
         template <class Key> node_pointer find_node(Key const& k) const
