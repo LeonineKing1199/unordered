@@ -2541,10 +2541,12 @@ namespace boost {
             }
 
             if (boost::is_same<node_pointer, node_type*>::value) {
-              while ((p = p->next())) {
+              p = p->next();
+              while(p) {
                 if (p->first_in_group()) {
                   break;
                 }
+                p = p->next();
               }
             } else {
               p = p->next();
