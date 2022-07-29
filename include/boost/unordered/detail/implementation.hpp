@@ -3522,7 +3522,9 @@ namespace boost {
         //
         // no throw
 
-        template <class Key> std::size_t erase_key_equiv_impl(Key const& k)
+        template <class Key, class IsEquiv, class UsesRawPointers>
+        std::size_t erase_key_equiv_impl_dispatch(
+          Key const& k, IsEquiv, UsesRawPointers)
         {
           std::size_t deleted_count = 0;
 
@@ -3531,53 +3533,153 @@ namespace boost {
           node_pointer p = itb->next;
           node_pointer prev_p = p;
 
-          bool const empty_bucket = !p;
-          if (empty_bucket) {
-            return 0;
-          }
-
-          while (p && !pred(k, extractor::extract(p->value()))) {
-            prev_p = p;
-            p = p->next();
-          }
-
-          bool const missing_key = !p;
-          if (missing_key) {
-            return 0;
-          }
-
-          bool const at_bucket_start = (p == itb->next);
-          if (at_bucket_start) {
-            while (p && adjacent_equivalent(k, p, p->next())) {
-              node_pointer next_p = p->next();
-              itb->next = next_p;
-              this->delete_node(p);
-              --size_;
-              ++deleted_count;
-              p = next_p;
-            }
-
-            if (!itb->next) {
-              buckets_.unlink_bucket(itb);
-            }
-            return deleted_count;
-          }
-
-          while (p) {
-            if (adjacent_equivalent(k, p, p->next())) {
-              node_pointer old = p;
-              p = p->next();
-              this->delete_node(old);
-              prev_p->next(p, prev_p->first_in_group());
-              --size_;
-              ++deleted_count;
-            } else {
+          if (p) {
+            while (p && !pred(k, this->get_key(p))) {
               prev_p = p;
               p = p->next();
+            }
+
+            if (p) {
+              if (p == itb->next) {
+                do {
+                  node_pointer next_p = p->next();
+                  itb->next = next_p;
+                  this->delete_node(p);
+                  --size_;
+                  ++deleted_count;
+                  p = next_p;
+                } while (p && pred(k, this->get_key(p)));
+
+                if (!itb->next) {
+                  buckets_.unlink_bucket(itb);
+                }
+              } else {
+                do {
+                  node_pointer next_p = p->next();
+                  prev_p->next(next_p, true);
+                  this->delete_node(p);
+                  p = next_p;
+                  --size_;
+                  ++deleted_count;
+                } while (p && pred(k, this->get_key(p)));
+              }
             }
           }
 
           return deleted_count;
+        }
+
+        template <class Key>
+        std::size_t erase_key_equiv_impl_dispatch(
+          Key const& k, true_type, true_type)
+        {
+          std::size_t deleted_count = 0;
+
+          key_equal pred = this->key_eq();
+          bucket_iterator itb = buckets_.at(buckets_.position(this->hash(k)));
+          node_pointer p = itb->next;
+          node_pointer prev_p = p;
+
+          if (p) {
+            while (p && !pred(k, this->get_key(p))) {
+              prev_p = p;
+              p = p->next();
+            }
+
+            if (p) {
+              BOOST_ASSERT(p->first_in_group());
+
+              if (p == itb->next) {
+                do {
+                  node_pointer next_p = p->next();
+                  itb->next = next_p;
+                  this->delete_node(p);
+                  ++deleted_count;
+                  --size_;
+                  p = next_p;
+                } while (p && !p->first_in_group());
+
+                if (!itb->next) {
+                  buckets_.unlink_bucket(itb);
+                } else {
+                  itb->next->first_in_group(true);
+                }
+              } else {
+                do {
+                  node_pointer next_p = p->next();
+                  prev_p->next(next_p, prev_p->first_in_group());
+                  this->delete_node(p);
+                  p = next_p;
+                  --size_;
+                  ++deleted_count;
+                } while (p && !p->first_in_group());
+              }
+            }
+          }
+
+          return deleted_count;
+        }
+
+        template <class Key> std::size_t erase_key_equiv_impl(Key const& k)
+        {
+          typedef typename Types::is_equiv is_equiv;
+          typedef typename Types::uses_raw_pointers uses_raw_pointers;
+          return this->erase_key_equiv_impl_dispatch(k, is_equiv(), uses_raw_pointers());
+
+          // std::size_t deleted_count = 0;
+
+          // key_equal pred = this->key_eq();
+          // bucket_iterator itb = buckets_.at(buckets_.position(this->hash(k)));
+          // node_pointer p = itb->next;
+          // node_pointer prev_p = p;
+
+          // bool const empty_bucket = !p;
+          // if (empty_bucket) {
+          //   return 0;
+          // }
+
+          // while (p && !pred(k, extractor::extract(p->value()))) {
+          //   prev_p = p;
+          //   p = p->next();
+          // }
+
+          // bool const missing_key = !p;
+          // if (missing_key) {
+          //   return 0;
+          // }
+
+          // bool const at_bucket_start = (p == itb->next);
+          // if (at_bucket_start) {
+          //   while (p && adjacent_equivalent(k, p, p->next())) {
+          //     node_pointer next_p = p->next();
+          //     itb->next = next_p;
+          //     this->delete_node(p);
+          //     --size_;
+          //     ++deleted_count;
+          //     p = next_p;
+          //   }
+
+          //   if (!itb->next) {
+          //     buckets_.unlink_bucket(itb);
+          //   }
+          //   return deleted_count;
+          // }
+
+          // while (p) {
+          //   if (adjacent_equivalent(k, p, p->next())) {
+          //     node_pointer old = p;
+          //     p = p->next();
+          //     this->delete_node(old);
+          //     prev_p->next(p, prev_p->first_in_group());
+          //     --size_;
+          //     ++deleted_count;
+          //   } else {
+          //     prev_p = p;
+          //     p = p->next();
+          //   }
+          // }
+
+          // return deleted_count;
 
           // node_pointer* pp = this->find_prev(k, itb);
           // if (pp) {
