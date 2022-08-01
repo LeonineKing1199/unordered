@@ -4,6 +4,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 
+#include <boost/type_traits/integral_constant.hpp>
 #include <boost/unordered/detail/implementation.hpp>
 #include <boost/unordered/unordered_set_fwd.hpp>
 
@@ -19,6 +20,13 @@ namespace boost {
         typedef P key_equal;
         typedef T const const_key_type;
 
+        typedef typename boost::allocator_void_pointer<A>::type void_pointer;
+
+        typedef boost::false_type is_equiv;
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, boost::true_type,
+          boost::false_type>::type uses_raw_pointers;
+
         typedef
           typename ::boost::unordered::detail::rebind_wrap<A, value_type>::type
             value_allocator;
@@ -28,8 +36,38 @@ namespace boost {
         typedef boost::unordered::detail::table<types> table;
         typedef boost::unordered::detail::set_extractor<value_type> extractor;
 
-        typedef typename boost::allocator_void_pointer<value_allocator>::type
-          void_pointer;
+        typedef boost::unordered::node_handle_set<
+          node<value_type, void_pointer>, T, A>
+          node_type;
+
+        typedef typename table::c_iterator iterator;
+        typedef boost::unordered::insert_return_type_set<iterator, node_type>
+          insert_return_type;
+      };
+
+      template <typename A, typename T, typename H, typename P> struct multiset
+      {
+        typedef boost::unordered::detail::multiset<A, T, H, P> types;
+
+        typedef typename boost::allocator_void_pointer<A>::type void_pointer;
+
+        typedef T value_type;
+        typedef H hasher;
+        typedef P key_equal;
+        typedef T const const_key_type;
+        typedef boost::true_type is_equiv;
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, boost::true_type,
+          boost::false_type>::type uses_raw_pointers;
+
+        typedef
+          typename ::boost::unordered::detail::rebind_wrap<A, value_type>::type
+            value_allocator;
+        typedef boost::unordered::detail::allocator_traits<value_allocator>
+          value_allocator_traits;
+
+        typedef boost::unordered::detail::table<types> table;
+        typedef boost::unordered::detail::set_extractor<value_type> extractor;
 
         typedef boost::unordered::node_handle_set<
           node<value_type, void_pointer>, T, A>
@@ -56,6 +94,6 @@ namespace boost {
         container x;
         typename container::node_type node_type;
       };
-    }
-  }
-}
+    } // namespace detail
+  }   // namespace unordered
+} // namespace boost
