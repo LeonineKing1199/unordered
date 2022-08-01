@@ -15,10 +15,16 @@ namespace boost {
       {
         typedef boost::unordered::detail::map<A, K, M, H, P> types;
 
+        typedef typename boost::allocator_void_pointer<A>::type void_pointer;
+
         typedef std::pair<K const, M> value_type;
         typedef H hasher;
         typedef P key_equal;
         typedef K const const_key_type;
+        typedef boost::true_type is_equiv;
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, boost::true_type,
+          boost::false_type>::type uses_raw_pointers;
 
         typedef
           typename ::boost::unordered::detail::rebind_wrap<A, value_type>::type
@@ -29,15 +35,47 @@ namespace boost {
         typedef boost::unordered::detail::table<types> table;
         typedef boost::unordered::detail::map_extractor<value_type> extractor;
 
-        typedef typename boost::allocator_void_pointer<value_allocator>::type
-          void_pointer;
+        typedef boost::unordered::node_handle_map<
+          node<value_type, void_pointer>, K, M, A>
+          node_type;
+
+        typedef typename table::iterator iterator;
+        typedef boost::unordered::insert_return_type_map<iterator, node_type>
+          insert_return_type;
+      };
+
+      template <typename A, typename K, typename M, typename H, typename P>
+      struct multimap
+      {
+        typedef boost::unordered::detail::multimap<A, K, M, H, P> types;
+
+        typedef typename boost::allocator_void_pointer<A>::type void_pointer;
+
+        typedef std::pair<K const, M> value_type;
+        typedef H hasher;
+        typedef P key_equal;
+        typedef K const const_key_type;
+        typedef boost::true_type is_equiv;
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, boost::true_type,
+          boost::false_type>::type uses_raw_pointers;
+
+        typedef
+          typename ::boost::unordered::detail::rebind_wrap<A, value_type>::type
+            value_allocator;
+        typedef boost::unordered::detail::allocator_traits<value_allocator>
+          value_allocator_traits;
+
+        typedef boost::unordered::detail::table<types> table;
+        typedef boost::unordered::detail::map_extractor<value_type> extractor;
 
         typedef boost::unordered::node_handle_map<
           node<value_type, void_pointer>, K, M, A>
           node_type;
 
         typedef typename table::iterator iterator;
-        typedef boost::unordered::insert_return_type_map<iterator, node_type> insert_return_type;
+        typedef boost::unordered::insert_return_type_map<iterator, node_type>
+          insert_return_type;
       };
 
       template <typename K, typename M, typename H, typename P, typename A>
@@ -56,6 +94,6 @@ namespace boost {
         container x;
         typename container::node_type node_type;
       };
-    }
-  }
-}
+    } // namespace detail
+  }   // namespace unordered
+} // namespace boost

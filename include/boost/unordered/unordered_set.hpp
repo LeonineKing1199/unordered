@@ -670,7 +670,7 @@ namespace boost {
       typedef A allocator_type;
 
     private:
-      typedef boost::unordered::detail::set<A, T, H, P> types;
+      typedef boost::unordered::detail::multiset<A, T, H, P> types;
       typedef typename types::value_allocator_traits value_allocator_traits;
       typedef typename types::table table;
 
