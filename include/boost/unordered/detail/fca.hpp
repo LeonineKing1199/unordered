@@ -134,6 +134,80 @@ to normal separate chaining implementations.
 namespace boost {
   namespace unordered {
     namespace detail {
+      template <typename Ptr> class embedded_ptr;
+
+      template <typename T> class embedded_ptr<T*>
+      {
+      private:
+        T* p;
+
+      public:
+        embedded_ptr() : p() {}
+        embedded_ptr(T* p_) : p(p_) {}
+        embedded_ptr(const embedded_ptr& x) : p(x.operator->()) {}
+
+        embedded_ptr& operator=(const embedded_ptr& x)
+        {
+          p = reinterpret_cast<T*>(
+            reinterpret_cast<boost::uintptr_t>(x.operator->()) |
+            first_in_group());
+          return *this;
+        }
+
+        bool first_in_group() const
+        {
+          return reinterpret_cast<boost::uintptr_t>(p) & boost::uintptr_t(1);
+        }
+
+        void first_in_group(bool b)
+        {
+          p = reinterpret_cast<T*>(
+            reinterpret_cast<boost::uintptr_t>(this->operator->()) | b);
+        }
+
+        T* operator->() const
+        {
+          return reinterpret_cast<T*>(
+            reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
+        }
+
+        embedded_ptr& operator*() const { return *(this->operator->()); }
+
+        operator bool() { return this->operator->(); }
+        operator T*() { return this->operator->(); }
+
+        bool operator==(embedded_ptr const& rhs) const BOOST_NOEXCEPT
+        {
+          return this->operator->() == rhs.operator->();
+        }
+
+        bool operator!=(embedded_ptr const& rhs) const BOOST_NOEXCEPT
+        {
+          return !(*this == rhs);
+        }
+      };
+    } // namespace detail
+  }   // namespace unordered
+} // namespace boost
+
+namespace boost {
+  template <class T>
+  struct pointer_traits<boost::unordered::detail::embedded_ptr<T*> >
+  {
+    typedef T* pointer;
+    typedef T element_type;
+    typedef std::ptrdiff_t difference_type;
+
+    template <class U> struct rebind_to
+    {
+      typedef boost::unordered::detail::embedded_ptr<U*> type;
+    };
+  };
+} // namespace boost
+
+namespace boost {
+  namespace unordered {
+    namespace detail {
 
       template <class ValueType, class VoidPtr> struct node
       {
