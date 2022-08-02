@@ -150,7 +150,7 @@ namespace boost {
         {
           p = reinterpret_cast<T*>(
             reinterpret_cast<boost::uintptr_t>(x.operator->()) |
-            first_in_group());
+            boost::uintptr_t(first_in_group()));
           return *this;
         }
 
@@ -235,9 +235,7 @@ namespace boost {
       template <class ValueType> struct node<ValueType, void*>
       {
         typedef ValueType value_type;
-        typedef embedded_ptr<
-          typename boost::pointer_traits<void*>::template rebind_to<node>::type>
-          node_pointer;
+        typedef embedded_ptr<node*> node_pointer;
 
         node_pointer next;
         typename boost::aligned_storage<sizeof(value_type),
