@@ -1943,7 +1943,11 @@ namespace boost {
 
         typedef typename bucket_array_type::node_allocator_type
           node_allocator_type;
-        typedef typename boost::allocator_pointer<node_allocator_type>::type node_pointer;
+
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, embedded_ptr<node_type*>,
+          typename boost::allocator_pointer<node_allocator_type>::type>::type
+          node_pointer;
 
         typedef boost::unordered::detail::node_constructor<node_allocator_type>
           node_constructor;

@@ -232,10 +232,33 @@ namespace boost {
         }
       };
 
+      template <class ValueType> struct node<ValueType, void*>
+      {
+        typedef ValueType value_type;
+        typedef embedded_ptr<
+          typename boost::pointer_traits<void*>::template rebind_to<node>::type>
+          node_pointer;
+
+        node_pointer next;
+        typename boost::aligned_storage<sizeof(value_type),
+          boost::alignment_of<value_type>::value>::type buf;
+
+        node() BOOST_NOEXCEPT : next(), buf() {}
+
+        value_type* value_ptr() BOOST_NOEXCEPT
+        {
+          return reinterpret_cast<value_type*>(buf.address());
+        }
+
+        value_type& value() BOOST_NOEXCEPT
+        {
+          return *reinterpret_cast<value_type*>(buf.address());
+        }
+      };
+
       template <class Node, class VoidPtr> struct bucket
       {
-        typedef typename boost::pointer_traits<VoidPtr>::template rebind_to<
-          Node>::type node_pointer;
+        typedef typename Node::node_pointer node_pointer;
 
         typedef typename boost::pointer_traits<VoidPtr>::template rebind_to<
           bucket>::type bucket_pointer;
@@ -533,8 +556,12 @@ namespace boost {
           node<allocator_value_type, void_pointer> >::type node_allocator_type;
 
         typedef node<allocator_value_type, void_pointer> node_type;
-        typedef typename boost::allocator_pointer<node_allocator_type>::type
+
+        typedef typename boost::conditional<
+          boost::is_same<void_pointer, void*>::value, embedded_ptr<node_type*>,
+          typename boost::allocator_pointer<node_allocator_type>::type>::type
           node_pointer;
+
         typedef SizePolicy size_policy;
 
       private:
