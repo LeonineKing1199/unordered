@@ -173,7 +173,7 @@ namespace boost {
 
         embedded_ptr& operator*() const { return *(this->operator->()); }
 
-        operator bool() { return this->operator->(); }
+        operator bool() { return this->operator->() == NULL ? false : true; }
         operator T*() { return this->operator->(); }
 
         bool operator==(embedded_ptr const& rhs) const BOOST_NOEXCEPT
