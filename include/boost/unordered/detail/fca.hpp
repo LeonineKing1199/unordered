@@ -129,6 +129,7 @@ to normal separate chaining implementations.
 
 #include <boost/config.hpp>
 
+#include <iostream>
 #include <iterator>
 
 namespace boost {
@@ -146,7 +147,7 @@ namespace boost {
         embedded_ptr(T* p_) : p(p_) {}
         embedded_ptr(const embedded_ptr& x) : p(x.operator->()) {}
 
-        embedded_ptr& operator=(const embedded_ptr& x)
+        embedded_ptr& operator=(const embedded_ptr& x) BOOST_NOEXCEPT
         {
           p = reinterpret_cast<T*>(
             reinterpret_cast<boost::uintptr_t>(x.operator->()) |
@@ -154,15 +155,16 @@ namespace boost {
           return *this;
         }
 
-        bool first_in_group() const
+        bool first_in_group() const BOOST_NOEXCEPT
         {
           return reinterpret_cast<boost::uintptr_t>(p) & boost::uintptr_t(1);
         }
 
-        void first_in_group(bool b)
+        void first_in_group(bool b) BOOST_NOEXCEPT
         {
           p = reinterpret_cast<T*>(
-            reinterpret_cast<boost::uintptr_t>(this->operator->()) | b);
+            reinterpret_cast<boost::uintptr_t>(this->operator->()) |
+            boost::uintptr_t(b));
         }
 
         T* operator->() const
@@ -171,7 +173,14 @@ namespace boost {
             reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
         }
 
-        embedded_ptr& operator*() const { return *(this->operator->()); }
+        T* operator->()
+        {
+          return reinterpret_cast<T*>(
+            reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
+        }
+
+        T const& operator*() const { return *(this->operator->()); }
+        T& operator*() { return *(this->operator->()); }
 
         operator bool() { return this->operator->() == NULL ? false : true; }
         operator T*() { return this->operator->(); }
@@ -251,6 +260,13 @@ namespace boost {
         value_type& value() BOOST_NOEXCEPT
         {
           return *reinterpret_cast<value_type*>(buf.address());
+        }
+
+        void first_in_group(bool const b) { next.first_in_group(b); }
+
+        bool first_in_group() const BOOST_NOEXCEPT
+        {
+          return next.first_in_group();
         }
       };
 
