@@ -1928,6 +1928,8 @@ namespace boost {
         typedef typename Types::extractor extractor;
         typedef typename Types::value_type value_type;
         typedef typename Types::table table_impl;
+        typedef typename Types::is_equiv is_equiv;
+        typedef typename Types::uses_raw_pointers uses_raw_pointers;
 
         typedef boost::unordered::detail::functions<typename Types::hasher,
           typename Types::key_equal>
@@ -2434,9 +2436,9 @@ namespace boost {
 
         // Find Node
 
-        template <class Key>
-        node_pointer find_node_impl(
-          Key const& x, bucket_iterator itb) const
+        template <class Key, class IsEquiv, class UsesRawPointers>
+        node_pointer find_node_impl_dispatch(
+          Key const& x, bucket_iterator itb, IsEquiv, UsesRawPointers) const
         {
           node_pointer p = node_pointer();
           if (itb != buckets_.end()) {
@@ -2449,6 +2451,42 @@ namespace boost {
             }
           }
           return p;
+        }
+
+        template <class Key>
+        node_pointer find_node_impl_dispatch(Key const& x, bucket_iterator itb,
+          boost::true_type /* is_equiv */,
+          boost::true_type /* uses_raw_pointers*/) const
+        {
+#if 0
+          std::cout << std::boolalpha << "Doing bucket dump for find_node_impl_dispatch()" << std::endl;
+          if (itb->next) {
+            for (node_pointer copy = itb->next; copy; copy = copy->next) {
+              std::cout << (node_type*)copy
+                        << ": value: " << this->get_key(copy)
+                        << ", first: " << copy->first_in_group()
+                        << ", hint: " << (node_type*)copy->next << std::endl;
+            }
+          } else {
+            std::cout << "Empty bucket!" << std::endl;
+          }
+#endif
+          key_equal const& pred = this->key_eq();
+          node_pointer p = itb->next;
+          for (; p; p = p->next) {
+            if (pred(x, extractor::extract(p->value()))) {
+              break;
+            }
+          }
+          BOOST_ASSERT(!p || p->first_in_group());
+          return p;
+        }
+
+        template <class Key>
+        node_pointer find_node_impl(Key const& x, bucket_iterator itb) const
+        {
+          return this->find_node_impl_dispatch(
+            x, itb, is_equiv(), uses_raw_pointers());
         }
 
         template <class Key> node_pointer find_node(Key const& k) const
@@ -2518,9 +2556,9 @@ namespace boost {
           return it.p;
         }
 
-        // Reserve and rehash
-        void transfer_node(
-          node_pointer p, bucket_type&, bucket_array_type& new_buckets)
+        template <class IsEquiv, class UsesRawPointers>
+        void transfer_node_dispatch(node_pointer p, bucket_type&,
+          bucket_array_type& new_buckets, IsEquiv, UsesRawPointers)
         {
           const_key_type& key = extractor::extract(p->value());
           std::size_t const h = this->hash(key);
@@ -2537,6 +2575,36 @@ namespace boost {
             num_buckets = 1;
           }
           return num_buckets;
+        }
+
+        void transfer_node_dispatch(node_pointer p, bucket_type&,
+          bucket_array_type& new_buckets, boost::true_type, boost::true_type)
+        {
+          const_key_type& key = this->get_key(p);
+          std::size_t const h = this->hash(key);
+          bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
+
+          node_pointer next_p = p->next;
+
+          if (itnewb->next && !p->first_in_group()) {
+            itnewb->next->first_in_group(false);
+          }
+          if (next_p) {
+            next_p->first_in_group(true);
+          }
+          p->first_in_group(true);
+
+          new_buckets.append_bucket_group(itnewb);
+          p->next = itnewb->next;
+          itnewb->next = p;
+        }
+
+        // Reserve and rehash
+        void transfer_node(
+          node_pointer p, bucket_type& b, bucket_array_type& new_buckets)
+        {
+          transfer_node_dispatch(
+            p, b, new_buckets, is_equiv(), uses_raw_pointers());
         }
 
         void rehash(std::size_t);
@@ -3169,7 +3237,7 @@ namespace boost {
 
         // Emplace/Insert
 
-        iterator emplace_equiv(node_pointer n)
+        iterator emplace_equiv_dispatch(node_pointer n, boost::false_type /* uses_raw_pointers */)
         {
           node_tmp a(n, this->node_alloc());
           const_key_type& k = this->get_key(a.node_);
@@ -3186,6 +3254,43 @@ namespace boost {
           buckets_.insert_node_hint(itb, p, hint);
           ++size_;
           return iterator(p, itb);
+        }
+
+        iterator emplace_equiv_dispatch(
+          node_pointer n, boost::true_type /* uses_raw_pointers */)
+        {
+          node_tmp a(n, this->node_alloc());
+          const_key_type& k = this->get_key(a.node_);
+          std::size_t key_hash = this->hash(k);
+          bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
+          node_pointer hint = this->find_node_impl(k, itb);
+
+          if (size_ + 1 > max_load_) {
+            this->reserve(size_ + 1);
+            itb = buckets_.at(buckets_.position(key_hash));
+          }
+
+          node_pointer p = a.release();
+          BOOST_ASSERT(!p->first_in_group());
+
+          if (hint) {
+            BOOST_ASSERT(hint->first_in_group());
+            p->next = hint->next;
+            hint->next = p;
+          } else {
+            buckets_.append_bucket_group(itb);
+            p->first_in_group(true);
+            p->next = itb->next;
+            itb->next = p;
+          }
+
+          ++size_;
+          return iterator(p, itb);
+        }
+
+        iterator emplace_equiv(node_pointer n)
+        {
+          return this->emplace_equiv_dispatch(n, uses_raw_pointers());
         }
 
         iterator emplace_hint_equiv(c_iterator hint, node_pointer n)
@@ -3373,7 +3478,9 @@ namespace boost {
         ////////////////////////////////////////////////////////////////////////
         // fill_buckets
 
-        void copy_buckets(table const& src, false_type)
+        template <class IsEquiv, class UsesRawPointers>
+        void copy_equiv_buckets_dispatch(
+          table const& src, IsEquiv, UsesRawPointers)
         {
           BOOST_ASSERT(size_ == 0);
 
@@ -3392,6 +3499,44 @@ namespace boost {
             buckets_.insert_node_hint(itb, tmp.release(), hint);
             ++size_;
           }
+        }
+
+        void copy_equiv_buckets_dispatch(
+          table const& src, boost::true_type, boost::true_type)
+        {
+          BOOST_ASSERT(size_ == 0);
+
+          this->reserve_for_insert(src.size_);
+
+          iterator last = src.end();
+          for (iterator pos = src.begin(); pos != last; ++pos) {
+            value_type const& value = *pos;
+            const_key_type& key = extractor::extract(value);
+            std::size_t const key_hash = this->hash(key);
+
+            bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
+            node_allocator_type alloc = this->node_alloc();
+            node_tmp tmp(detail::func::construct_node(alloc, value), alloc);
+            node_pointer hint = this->find_node_impl(key, itb);
+
+            node_pointer p = tmp.release();
+            buckets_.append_bucket_group(itb);
+            if (hint) {
+              p->next = hint->next;
+              hint->next = p;
+            } else {
+              p->first_in_group(true);
+              p->next = itb->next;
+              itb->next = p;
+            }
+
+            ++size_;
+          }
+        }
+
+        void copy_buckets(table const& src, false_type)
+        {
+          copy_equiv_buckets_dispatch(src, is_equiv(), uses_raw_pointers());
         }
 
         void move_assign_buckets(table& src, false_type)
