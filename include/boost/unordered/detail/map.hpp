@@ -21,7 +21,7 @@ namespace boost {
         typedef H hasher;
         typedef P key_equal;
         typedef K const const_key_type;
-        typedef boost::true_type is_equiv;
+        typedef boost::false_type is_equiv;
         typedef typename boost::conditional<
           boost::is_same<void_pointer, void*>::value, boost::true_type,
           boost::false_type>::type uses_raw_pointers;

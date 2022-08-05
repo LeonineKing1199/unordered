@@ -2543,7 +2543,9 @@ namespace boost {
 
         // Extract and erase
 
-        template <class Key> node_pointer extract_by_key_impl(Key const& k)
+        template <class Key, class IsEquiv, class UsesRawPointers>
+        node_pointer extract_by_key_impl_dispatch(
+          Key const& k, IsEquiv, UsesRawPointers)
         {
           iterator it = this->find(k);
           if (it == this->end()) {
@@ -2554,6 +2556,33 @@ namespace boost {
           --size_;
 
           return it.p;
+        }
+
+        template <class Key>
+        node_pointer extract_by_key_impl_dispatch(
+          Key const& k, boost::true_type, boost::true_type)
+        {
+          iterator it = this->find(k);
+          if (it == this->end()) {
+            return node_pointer();
+          }
+
+          node_pointer p = it.p;
+          BOOST_ASSERT(p->first_in_group());
+          if (p->next) {
+            p->next->first_in_group(true);
+          }
+
+          buckets_.extract_node(it.itb, p);
+          --size_;
+
+          return p;
+        }
+
+        template <class Key> node_pointer extract_by_key_impl(Key const& k)
+        {
+          return extract_by_key_impl_dispatch(
+            k, is_equiv(), uses_raw_pointers());
         }
 
         template <class IsEquiv, class UsesRawPointers>
@@ -2584,13 +2613,8 @@ namespace boost {
           std::size_t const h = this->hash(key);
           bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
 
-          node_pointer next_p = p->next;
-
           if (itnewb->next && !p->first_in_group()) {
             itnewb->next->first_in_group(false);
-          }
-          if (next_p) {
-            next_p->first_in_group(true);
           }
           p->first_in_group(true);
 
@@ -3274,7 +3298,6 @@ namespace boost {
           BOOST_ASSERT(!p->first_in_group());
 
           if (hint) {
-            BOOST_ASSERT(hint->first_in_group());
             p->next = hint->next;
             hint->next = p;
           } else {
@@ -3293,8 +3316,7 @@ namespace boost {
           return this->emplace_equiv_dispatch(n, uses_raw_pointers());
         }
 
-        iterator emplace_hint_equiv(c_iterator hint, node_pointer n)
-        {
+        iterator emplace_hint_equiv_dispatch(c_iterator hint, node_pointer n, boost::false_type) {
           node_tmp a(n, this->node_alloc());
           const_key_type& k = this->get_key(a.node_);
           bucket_iterator itb = hint.itb;
@@ -3324,7 +3346,45 @@ namespace boost {
           return iterator(n, itb);
         }
 
-        void emplace_no_rehash_equiv(node_pointer n)
+        iterator emplace_hint_equiv_dispatch(c_iterator hint, node_pointer n, boost::true_type) {
+          node_tmp a(n, this->node_alloc());
+          const_key_type& k = this->get_key(a.node_);
+          bucket_iterator itb = hint.itb;
+          node_pointer p = hint.p;
+
+          std::size_t key_hash = 0u;
+
+          bool const needs_rehash = (size_ + 1 > max_load_);
+          bool const usable_hint = (p && this->key_eq()(k, this->get_key(p)));
+
+          if (!usable_hint) {
+            key_hash = this->hash(k);
+            itb = buckets_.at(buckets_.position(key_hash));
+            p = this->find_node_impl(k, itb);
+          } else if (usable_hint && needs_rehash) {
+            key_hash = this->hash(k);
+          }
+
+          if (needs_rehash) {
+            this->reserve(size_ + 1);
+            itb = buckets_.at(buckets_.position(key_hash));
+          }
+
+          n->first_in_group(!p);
+
+          a.release();
+          buckets_.insert_node_hint(itb, n, p);
+          ++size_;
+          return iterator(n, itb);
+        }
+
+        iterator emplace_hint_equiv(c_iterator hint, node_pointer n)
+        {
+          return this->emplace_hint_equiv_dispatch(hint, n, uses_raw_pointers());
+        }
+
+        void emplace_no_rehash_equiv_dispatch(
+          node_pointer n, boost::false_type /* uses_raw_pointers */)
         {
           BOOST_ASSERT(size_ + 1 <= max_load_);
           node_tmp a(n, this->node_alloc());
@@ -3335,6 +3395,44 @@ namespace boost {
           node_pointer p = a.release();
           buckets_.insert_node_hint(itb, p, hint);
           ++size_;
+        }
+
+        void emplace_no_rehash_equiv_dispatch(
+          node_pointer n, boost::true_type /* uses_raw_pointers */)
+        {
+          BOOST_ASSERT(size_ + 1 <= max_load_);
+          node_tmp a(n, this->node_alloc());
+          const_key_type& k = this->get_key(a.node_);
+          std::size_t key_hash = this->hash(k);
+          bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
+          node_pointer hint = this->find_node_impl(k, itb);
+          node_pointer p = a.release();
+          if (!hint) {
+            p->first_in_group(true);
+          }
+          buckets_.insert_node_hint(itb, p, hint);
+          ++size_;
+        }
+
+        void emplace_no_rehash_equiv(node_pointer n)
+        {
+          emplace_no_rehash_equiv_dispatch(n, uses_raw_pointers());
+        }
+
+        template <class IsEquiv, class UsesRawPointers>
+        void insert_node_hint(bucket_iterator itb, node_pointer p,
+          node_pointer hint, IsEquiv, UsesRawPointers)
+        {
+          buckets_.insert_node_hint(itb, p, hint);
+        }
+
+        void insert_node_hint(bucket_iterator itb, node_pointer p,
+          node_pointer hint, boost::true_type, boost::true_type)
+        {
+          if (!hint) {
+            p->first_in_group(true);
+          }
+          buckets_.insert_node_hint(itb, p, hint);
         }
 
         template <typename NodeType>
@@ -3348,11 +3446,11 @@ namespace boost {
             const_key_type& k = this->get_key(np.ptr_);
             std::size_t key_hash = this->hash(k);
 
-            bucket_iterator itb =
-              buckets_.at(buckets_.position(key_hash));
+            bucket_iterator itb = buckets_.at(buckets_.position(key_hash));
 
             node_pointer hint = this->find_node_impl(k, itb);
-            buckets_.insert_node_hint(itb, np.ptr_, hint);
+            insert_node_hint(
+              itb, np.ptr_, hint, is_equiv(), uses_raw_pointers());
             ++size_;
 
             result = iterator(np.ptr_, itb);
@@ -3382,7 +3480,8 @@ namespace boost {
               itb = buckets_.at(buckets_.position(key_hash));
               pos = this->find_node_impl(k, itb);
             }
-            buckets_.insert_node_hint(itb, np.ptr_, pos);
+            insert_node_hint(
+              itb, np.ptr_, hint.p, is_equiv(), uses_raw_pointers());
             ++size_;
             result = iterator(np.ptr_, itb);
 
@@ -3433,13 +3532,37 @@ namespace boost {
         ////////////////////////////////////////////////////////////////////////
         // Extract
 
-        inline node_pointer extract_by_iterator_equiv(c_iterator n)
+        template <class IsEquiv, class UsesRawPointers>
+        node_pointer extract_by_iterator_equiv_dispatch(
+          c_iterator n, IsEquiv, UsesRawPointers)
         {
           node_pointer p = n.p;
           bucket_iterator itb = n.itb;
+
           buckets_.extract_node(itb, p);
           --size_;
           return p;
+        }
+
+        node_pointer extract_by_iterator_equiv_dispatch(
+          c_iterator n, boost::true_type, boost::true_type)
+        {
+          node_pointer p = n.p;
+          bucket_iterator itb = n.itb;
+
+          if (p->next && p->first_in_group()) {
+            p->next->first_in_group(true);
+          }
+          buckets_.extract_node(itb, p);
+          --size_;
+
+          return p;
+        }
+
+        inline node_pointer extract_by_iterator_equiv(c_iterator n)
+        {
+          return extract_by_iterator_equiv_dispatch(
+            n, is_equiv(), uses_raw_pointers());
         }
 
         ////////////////////////////////////////////////////////////////////////
