@@ -2240,9 +2240,9 @@ namespace boost {
 
           this->reserve(src.size_);
           bucket_iterator itb = src.buckets_.begin();
-          bucket_iterator end = src.buckets_.end();
+          bucket_iterator last = src.buckets_.end();
 
-          for (; itb != end; ++itb) {
+          for (; itb != last; ++itb) {
             node_pointer p = itb->next;
 
             while (p) {
@@ -2808,9 +2808,9 @@ namespace boost {
           BOOST_TRY
           {
             bucket_iterator itb = buckets_.begin();
-            bucket_iterator end = buckets_.end();
+            bucket_iterator last = buckets_.end();
 
-            for (; itb != end; ++itb) {
+            for (; itb != last; ++itb) {
               node_pointer p = itb->next;
 
               while (p) {
@@ -4107,8 +4107,8 @@ namespace boost {
         void move_assign_buckets_dispatch(
           table& src, boost::true_type /* uses_raw_pointers*/)
         {
-          bucket_iterator end = src.buckets_.end();
-          for (bucket_iterator itb = src.buckets_.begin(); itb != end; ++itb) {
+          bucket_iterator last = src.buckets_.end();
+          for (bucket_iterator itb = src.buckets_.begin(); itb != last; ++itb) {
             node_pointer p = itb->next;
             while (p) {
               BOOST_ASSERT(p->first_in_group());
