@@ -2370,24 +2370,7 @@ namespace boost {
             bucket_type& b = pbs[i];
             if (!b.next) { continue; }
 
-            // std::cout << "Dump for bucket " << i << std::endl;
-            // for (node_pointer copy = b.next; copy; copy = copy->next) {
-            //   std::cout << std::boolalpha << (node_type*)copy
-            //             << " => key: " << this->get_key(copy)
-            //             << ", first: " << copy->first_in_group()
-            //             << ", next: " << (node_type*)copy->next << std::endl;
-            // }
-
             for (node_pointer copy = b.next; copy; ) {
-              // if (!copy->first_in_group()) {
-              //   std::cout << "Dump for bucket " << i << std::endl;
-              //   for (node_pointer copy2 = b.next; copy2; copy2 = copy2->next) {
-              //     std::cout << std::boolalpha << (node_type*)copy2
-              //               << " => key: " << this->get_key(copy2)
-              //               << ", first: " << copy2->first_in_group()
-              //               << ", next: " << (node_type*)copy2->next << std::endl;
-              //   }
-              // }
               BOOST_ASSERT(copy->first_in_group());
               if (!copy->next) { copy = copy->next; continue; }
 
@@ -2401,8 +2384,12 @@ namespace boost {
           }
         }
 
+        void verify() {
+          this->verify(is_equiv(), uses_raw_pointers());
+        }
+
         ~table() {
-          // verify(is_equiv(), uses_raw_pointers());
+          // verify();
           delete_buckets(); 
         }
 
@@ -2617,19 +2604,6 @@ namespace boost {
           boost::true_type /* is_equiv */,
           boost::true_type /* uses_raw_pointers*/) const
         {
-#if 0
-          std::cout << std::boolalpha << "Doing bucket dump for find_node_impl_dispatch()" << std::endl;
-          if (itb->next) {
-            for (node_pointer copy = itb->next; copy; copy = copy->next) {
-              std::cout << (node_type*)copy
-                        << ": value: " << this->get_key(copy)
-                        << ", first: " << copy->first_in_group()
-                        << ", hint: " << (node_type*)copy->next << std::endl;
-            }
-          } else {
-            std::cout << "Empty bucket!" << std::endl;
-          }
-#endif
           key_equal const& pred = this->key_eq();
           node_pointer p = itb->next;
           for (; p;) {
@@ -2750,9 +2724,9 @@ namespace boost {
             k, is_equiv(), uses_raw_pointers());
         }
 
-        template <class IsEquiv, class UsesRawPointers>
-        void transfer_node_dispatch(node_pointer p, bucket_type&,
-          bucket_array_type& new_buckets, IsEquiv, UsesRawPointers)
+        // Reserve and rehash
+        void transfer_node(
+          node_pointer p, bucket_type&, bucket_array_type& new_buckets)
         {
           const_key_type& key = extractor::extract(p->value());
           std::size_t const h = this->hash(key);
@@ -4316,7 +4290,7 @@ namespace boost {
         template <typename T2> static choice1::type test(T2 const&);
         static choice2::type test(Key const&);
 
-        enum 
+        enum
         {
           value = sizeof(test(boost::unordered::detail::make<T>())) ==
                   sizeof(choice2::type)

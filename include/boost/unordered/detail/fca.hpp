@@ -129,7 +129,6 @@ to normal separate chaining implementations.
 
 #include <boost/config.hpp>
 
-#include <iostream>
 #include <iterator>
 
 namespace boost {
@@ -195,28 +194,6 @@ namespace boost {
           return !(*this == rhs);
         }
       };
-    } // namespace detail
-  }   // namespace unordered
-} // namespace boost
-
-namespace boost {
-  template <class T>
-  struct pointer_traits<boost::unordered::detail::embedded_ptr<T*> >
-  {
-    typedef T* pointer;
-    typedef T element_type;
-    typedef std::ptrdiff_t difference_type;
-
-    template <class U> struct rebind_to
-    {
-      typedef boost::unordered::detail::embedded_ptr<U*> type;
-    };
-  };
-} // namespace boost
-
-namespace boost {
-  namespace unordered {
-    namespace detail {
 
       template <class ValueType, class VoidPtr> struct node
       {
