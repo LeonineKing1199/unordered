@@ -2604,20 +2604,23 @@ namespace boost {
           boost::true_type /* is_equiv */,
           boost::true_type /* uses_raw_pointers*/) const
         {
-          key_equal const& pred = this->key_eq();
-          node_pointer p = itb->next;
-          for (; p;) {
-            if (pred(x, this->get_key(p))) {
-              break;
-            }
+          node_pointer p = node_pointer();
+          if (itb != buckets_.end()) {
+            key_equal const& pred = this->key_eq();
+            p = itb->next;
+            for (; p;) {
+              if (pred(x, this->get_key(p))) {
+                break;
+              }
 
-            p = p->next;
-            while (p && !p->first_in_group()) {
               p = p->next;
+              while (p && !p->first_in_group()) {
+                p = p->next;
+              }
             }
-          }
 
-          BOOST_ASSERT(!p || p->first_in_group());
+            BOOST_ASSERT(!p || p->first_in_group());
+          }
           return p;
         }
 
