@@ -26,12 +26,12 @@ struct hash2
 
 struct equal1
 {
-  template <class T> bool operator==(T const&) const { return true; }
+  template <class T> bool operator()(T const&, T const&) const { return true; }
 };
 
 struct equal2
 {
-  template <class T> bool operator==(T const&) const { return true; }
+  template <class T> bool operator()(T const&, T const&) const { return true; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
