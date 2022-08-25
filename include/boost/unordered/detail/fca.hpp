@@ -113,6 +113,7 @@ to normal separate chaining implementations.
 
 */
 
+#include <boost/unordered/detail/launder.hpp>
 #include <boost/unordered/detail/prime_fmod.hpp>
 
 #include <boost/core/addressof.hpp>
@@ -174,8 +175,8 @@ namespace boost {
 
         T* operator->()
         {
-          return reinterpret_cast<T*>(
-            reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
+          return ::boost::unordered::detail::launder(reinterpret_cast<T*>(
+            reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1)));
         }
 
         T const& operator*() const { return *(this->operator->()); }
@@ -603,8 +604,7 @@ namespace boost {
 
         grouped_bucket_array(size_type n, const Allocator& al)
             : empty_value<node_allocator_type>(empty_init_t(), al),
-              size_index_(0),
-              size_(0), buckets(), groups()
+              size_index_(0), size_(0), buckets(), groups()
         {
           if (n == 0) {
             return;
