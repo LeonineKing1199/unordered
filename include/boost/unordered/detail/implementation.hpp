@@ -2355,42 +2355,57 @@ namespace boost {
 
         ////////////////////////////////////////////////////////////////////////
         // Delete/destruct
-
+#ifdef BOOST_UNORDERED_VERIFY_FIRST_IN_GROUP
         template <class IsEquiv, class UsesRawPointers>
-        void verify(IsEquiv, UsesRawPointers) {}
+        void verify(IsEquiv, UsesRawPointers)
+        {
+        }
 
-        void verify(boost::true_type, boost::true_type) {
-          span<bucket_type> bs = buckets_.raw();
-          bucket_type* pbs = bs.data;
-          std::size_t size = bs.size;
+        void verify(boost::true_type, boost::true_type)
+        {
+          BOOST_TRY
+          {
+            span<bucket_type> bs = buckets_.raw();
+            bucket_type* pbs = bs.data;
+            std::size_t size = bs.size;
 
-          key_equal const& pred = this->key_eq();
+            key_equal const& pred = this->key_eq();
 
-          for (std::size_t i = 0; i < size; ++i) {
-            bucket_type& b = pbs[i];
-            if (!b.next) { continue; }
+            for (std::size_t i = 0; i < size; ++i) {
+              bucket_type& b = pbs[i];
+              if (!b.next) {
+                continue;
+              }
 
-            for (node_pointer copy = b.next; copy; ) {
-              BOOST_ASSERT(copy->first_in_group());
-              if (!copy->next) { copy = copy->next; continue; }
+              for (node_pointer copy = b.next; copy;) {
+                BOOST_ASSERT(copy->first_in_group());
+                if (!copy->next) {
+                  copy = copy->next;
+                  continue;
+                }
 
-              const_key_type& key = this->get_key(copy);
-              copy = copy->next;
-              while (copy && pred(this->get_key(copy), key)) {
-                BOOST_ASSERT(!copy->first_in_group());
+                const_key_type& key = this->get_key(copy);
                 copy = copy->next;
+                while (copy && pred(this->get_key(copy), key)) {
+                  BOOST_ASSERT(!copy->first_in_group());
+                  copy = copy->next;
+                }
               }
             }
           }
+          BOOST_CATCH(...) {}
+          BOOST_CATCH_END
         }
 
-        void verify() {
-          this->verify(is_equiv(), uses_raw_pointers());
-        }
+        void verify() { this->verify(is_equiv(), uses_raw_pointers()); }
+#endif
 
-        ~table() {
-          // verify();
-          delete_buckets(); 
+        ~table()
+        {
+#ifdef BOOST_UNORDERED_VERIFY_FIRST_IN_GROUP
+          verify();
+#endif
+          delete_buckets();
         }
 
         void delete_node(node_pointer p)
@@ -3711,7 +3726,9 @@ namespace boost {
           return iterator(n, itb);
         }
 
-        iterator emplace_hint_equiv_dispatch(c_iterator hint, node_pointer n, boost::true_type) {
+        iterator emplace_hint_equiv_dispatch(
+          c_iterator hint, node_pointer n, boost::true_type)
+        {
           node_tmp a(n, this->node_alloc());
           const_key_type& k = this->get_key(a.node_);
           bucket_iterator itb = hint.itb;

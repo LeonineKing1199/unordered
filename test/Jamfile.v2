@@ -18,6 +18,7 @@ project
 
         <warnings>pedantic
         <toolset>intel:<warnings>on
+        <define>BOOST_UNORDERED_VERIFY_FIRST_IN_GROUP
 
         <toolset>gcc:<cxxflags>$(gcc-flags)
         <toolset>darwin:<cxxflags>$(gcc-flags)
