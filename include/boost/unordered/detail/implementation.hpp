@@ -2737,14 +2737,6 @@ namespace boost {
         }
 
         // Reserve and rehash
-        void transfer_node(
-          node_pointer p, bucket_type&, bucket_array_type& new_buckets)
-        {
-          const_key_type& key = extractor::extract(p->value());
-          std::size_t const h = this->hash(key);
-          bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
-          new_buckets.insert_node(itnewb, p);
-        }
 
         static std::size_t min_buckets(std::size_t num_elements, float mlf)
         {
@@ -2755,6 +2747,16 @@ namespace boost {
             num_buckets = 1;
           }
           return num_buckets;
+        }
+
+        template <class IsEquiv, class UsesRawPointers>
+        void transfer_node_dispatch(node_pointer p, bucket_type&,
+          bucket_array_type& new_buckets, IsEquiv, UsesRawPointers)
+        {
+          const_key_type& key = extractor::extract(p->value());
+          std::size_t const h = this->hash(key);
+          bucket_iterator itnewb = new_buckets.at(new_buckets.position(h));
+          new_buckets.insert_node(itnewb, p);
         }
 
         void transfer_node_dispatch(node_pointer p, bucket_type&,
