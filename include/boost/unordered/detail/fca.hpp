@@ -169,16 +169,14 @@ namespace boost {
 
         T* operator->() const
         {
-          T* q = reinterpret_cast<T*>(
+          return reinterpret_cast<T*>(
             reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
-          return q == NULL ? NULL : ::boost::unordered::detail::launder(q);
         }
 
         T* operator->()
         {
-          T* q = reinterpret_cast<T*>(
+          return reinterpret_cast<T*>(
             reinterpret_cast<boost::uintptr_t>(p) & ~boost::uintptr_t(1));
-          return q == NULL ? NULL : ::boost::unordered::detail::launder(q);
         }
 
         T const& operator*() const { return *(this->operator->()); }
