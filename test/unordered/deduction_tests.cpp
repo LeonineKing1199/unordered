@@ -7,6 +7,8 @@
 #include <iostream>
 #include <vector>
 
+#include <unordered_map>
+
 #if BOOST_UNORDERED_TEMPLATE_DEDUCTION_GUIDES
 struct hash_equals
 {
@@ -68,20 +70,19 @@ int main()
       std::is_same<decltype(m), boost::unordered_map<int, int> >::value);
   }
 
-  /* Ambiguous:
   {
     boost::unordered_map m(x.begin(), x.end(), 0, std::hash<int>());
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  std::hash<int>>>::value);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, std::hash<int> > >::value);
   }
 
   {
-    boost::unordered_map m(x.begin(), x.end(), 0, std::hash<int>(),
-  std::equal_to<int>());
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  std::hash<int>, std::equal_to<int>>>::value);
+    boost::unordered_map m(
+      x.begin(), x.end(), 0, std::hash<int>(), std::equal_to<int>());
+    static_assert(
+      std::is_same<decltype(m), boost::unordered_map<int, int, std::hash<int>,
+                                  std::equal_to<int> > >::value);
   }
-  */
 
   {
     boost::unordered_map m(x.begin(), x.end(), 0, std::hash<int>(),
@@ -107,21 +108,20 @@ int main()
       std::is_same<decltype(m), boost::unordered_map<int, int> >::value);
   }
 
-  /* Ambiguous
   {
-    boost::unordered_map m({std::pair<int const, int>(1,2)}, 0,
-  std::hash<int>());
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  std::hash<int>>>::value);
+    boost::unordered_map m(
+      {std::pair<int const, int>(1, 2)}, 0, std::hash<int>());
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, std::hash<int> > >::value);
   }
 
   {
-    boost::unordered_map m({std::pair<int const, int>(1,2)}, 0,
-  std::hash<int>(), std::equal_to<int>());
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  std::hash<int>, std::equal_to<int>>>::value);
+    boost::unordered_map m({std::pair<int const, int>(1, 2)}, 0,
+      std::hash<int>(), std::equal_to<int>());
+    static_assert(
+      std::is_same<decltype(m), boost::unordered_map<int, int, std::hash<int>,
+                                  std::equal_to<int> > >::value);
   }
-  */
 
   {
     boost::unordered_map m(
@@ -141,14 +141,12 @@ int main()
                        Allocator>;
   */
 
-  /* Ambiguous
   {
     boost::unordered_map m(x.begin(), x.end(), 0u, pair_allocator);
-    static_assert(std::is_same<decltype(m), boost::unordered_map<int, int,
-  boost::hash<int>, std::equal_to<int>, test_allocator<std::pair<const int,
-  int>>>>::value);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, boost::hash<int>, std::equal_to<int>,
+        test_allocator<std::pair<const int, int> > > >::value);
   }
-  */
 
   /*
     template<class InputIterator, class Allocator>
@@ -159,14 +157,12 @@ int main()
                        Allocator>;
   */
 
-  /* No constructor:
   {
     boost::unordered_map m(x.begin(), x.end(), pair_allocator);
-    static_assert(std::is_same<decltype(m), boost::unordered_map<int, int,
-  boost::hash<int>, std::equal_to<int>, test_allocator<std::pair<const int,
-  int>>>>::value);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, boost::hash<int>, std::equal_to<int>,
+        test_allocator<std::pair<const int, int> > > >::value);
   }
-  */
 
   /*
   template<class InputIterator, class Hash, class Allocator>
@@ -177,14 +173,12 @@ int main()
                        equal_to<iter_key_t<InputIterator>>, Allocator>;
   */
 
-  /* Ambiguous
   {
     boost::unordered_map m(x.begin(), x.end(), 0u, f, pair_allocator);
-    static_assert(std::is_same<decltype(m), boost::unordered_map<int, int,
-  hash_equals, std::equal_to<int>, test_allocator<std::pair<const int,
-  int>>>>::value);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, hash_equals, std::equal_to<int>,
+        test_allocator<std::pair<const int, int> > > >::value);
   }
-  */
 
   /*
     template<class Key, class T, typename Allocator>
@@ -194,14 +188,13 @@ int main()
       -> unordered_map<Key, T, hash<Key>, equal_to<Key>, Allocator>;
   */
 
-  /* Ambiguous
   {
-    boost::unordered_map m({std::pair<int const, int>(1,2)}, 0, pair_allocator);
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  boost::hash<int>, std::equal_to<int>, test_allocator<std::pair<const int,
-  int>>>>::value);
+    boost::unordered_map m(
+      {std::pair<int const, int>(1, 2)}, 0, pair_allocator);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, boost::hash<int>, std::equal_to<int>,
+        test_allocator<std::pair<const int, int> > > >::value);
   }
-  */
 
   /*
   template<class Key, class T, typename Allocator>
@@ -224,15 +217,13 @@ int main()
       -> unordered_map<Key, T, Hash, equal_to<Key>, Allocator>;
   */
 
-  /* Ambiguous
   {
-    boost::unordered_map m({std::pair<int const, int>(1,2)}, 0, f,
-  pair_allocator);
-    static_assert(std::is_same<decltype(m),boost::unordered_map<int, int,
-  boost::hash<int>, std::equal_to<int>, test_allocator<std::pair<const int,
-  int>>>>::value);
+    boost::unordered_map m(
+      {std::pair<int const, int>(1, 2)}, 0, f, pair_allocator);
+    static_assert(std::is_same<decltype(m),
+      boost::unordered_map<int, int, hash_equals, std::equal_to<int>,
+        test_allocator<std::pair<const int, int> > > >::value);
   }
-  */
 
   // unordered_multimap
 

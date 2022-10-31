@@ -921,6 +921,9 @@ namespace boost {
 
 #if BOOST_UNORDERED_TEMPLATE_DEDUCTION_GUIDES
 
+    // https://eel.is/c++draft/container.requirements#container.alloc.reqmts-34
+    // https://eel.is/c++draft/container.requirements#unord.req.general-243
+
     namespace detail {
       template <typename T>
       using iter_key_t =
@@ -931,66 +934,204 @@ namespace boost {
       template <typename T>
       using iter_to_alloc_t =
         typename std::pair<iter_key_t<T> const, iter_val_t<T> >;
-    }
+
+      template <class T> struct is_input_iterator
+      {
+        static constexpr bool const value = !std::is_integral<T>::value;
+      };
+
+      template <class T, class = void, class = void> struct is_allocator
+      {
+        static constexpr bool const value = false;
+      };
+
+      template <class T>
+      struct is_allocator<T, std::void_t<typename T::value_type>,
+        std::void_t<decltype(std::declval<T&>().allocate(std::size_t{}))> >
+      {
+        static constexpr bool const value = true;
+      };
+
+      template <class T> struct is_hash
+      {
+        static constexpr bool const value =
+          !std::is_integral<T>::value && !is_allocator<T>::value;
+      };
+
+      template <class T> struct is_pred
+      {
+        static constexpr bool const value = !is_allocator<T>::value;
+      };
+
+      static_assert(!is_allocator<boost::hash<int>>::value);
+      static_assert(is_hash<boost::hash<int>>::value);
+      static_assert(is_allocator<std::allocator<std::pair<int const, int>>>::value);
+      static_assert(!is_hash<std::allocator<std::pair<int const, int>>>::value);
+    } // namespace detail
 
     template <class InputIterator,
-      class Hash =
-        boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
-      class Pred =
-        std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
-      class Allocator = std::allocator<
-        boost::unordered::detail::iter_to_alloc_t<InputIterator> > >
+      class Hash = boost::hash<detail::iter_key_t<InputIterator> >,
+      class Pred = std::equal_to<detail::iter_key_t<InputIterator> >,
+      class Allocator = std::allocator<detail::iter_to_alloc_t<InputIterator> >,
+      class = std::enable_if_t<detail::is_input_iterator<InputIterator>::value>,
+      class = std::enable_if_t<!detail::is_allocator<Hash>::value>,
+      class = std::enable_if_t<!std::is_integral<Hash>::value>,
+      class = std::enable_if_t<!detail::is_allocator<Pred>::value>,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
     unordered_map(InputIterator, InputIterator,
-      std::size_t = boost::unordered::detail::default_bucket_count,
-      Hash = Hash(), Pred = Pred(), Allocator = Allocator())
-      ->unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
-        boost::unordered::detail::iter_val_t<InputIterator>, Hash, Pred,
-        Allocator>;
+      typename std::allocator_traits<Allocator>::size_type = 0, Hash = Hash(),
+      Pred = Pred(), Allocator = Allocator())
+      -> unordered_map<detail::iter_key_t<InputIterator>,
+        detail::iter_val_t<InputIterator>, Hash, Pred, Allocator>;
 
-    template <class Key, class T, class Hash = boost::hash<Key>,
-      class Pred = std::equal_to<Key>,
-      class Allocator = std::allocator<std::pair<const Key, T> > >
-    unordered_map(std::initializer_list<std::pair<const Key, T> >,
-      std::size_t = boost::unordered::detail::default_bucket_count,
-      Hash = Hash(), Pred = Pred(), Allocator = Allocator())
-      ->unordered_map<Key, T, Hash, Pred, Allocator>;
+    template <class Key, class Tp,
+      class Hash = boost::hash<std::remove_const_t<Key> >,
+      class Pred = std::equal_to<std::remove_const_t<Key> >,
+      class Allocator = std::allocator<std::pair<const Key, Tp> >,
+      class = std::enable_if_t<!detail::is_allocator<Hash>::value>,
+      class = std::enable_if_t<!std::is_integral<Hash>::value>,
+      class = std::enable_if_t<!detail::is_allocator<Pred>::value>,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
+    unordered_map(std::initializer_list<std::pair<Key, Tp> >,
+      typename std::allocator_traits<Allocator>::size_type = 0, Hash = Hash(),
+      Pred = Pred(), Allocator = Allocator())
+      -> unordered_map<std::remove_const_t<Key>, Tp, Hash, Pred, Allocator>;
 
-    template <class InputIterator, class Allocator>
-    unordered_map(InputIterator, InputIterator, std::size_t, Allocator)
-      ->unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
-        boost::unordered::detail::iter_val_t<InputIterator>,
-        boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
-        std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
-        Allocator>;
+    template <class InputIterator, class Allocator,
+      class = std::enable_if_t<detail::is_input_iterator<InputIterator>::value>,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
+    unordered_map(InputIterator, InputIterator,
+      typename allocator_traits<Allocator>::size_type, Allocator)
+      -> unordered_map<detail::iter_key_t<InputIterator>,
+        detail::iter_val_t<InputIterator>,
+        boost::hash<detail::iter_key_t<InputIterator> >,
+        std::equal_to<detail::iter_key_t<InputIterator> >, Allocator>;
 
-    template <class InputIterator, class Allocator>
+    template <class InputIterator, class Allocator,
+      class = std::enable_if_t<detail::is_input_iterator<InputIterator>::value>,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
     unordered_map(InputIterator, InputIterator, Allocator)
-      ->unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
-        boost::unordered::detail::iter_val_t<InputIterator>,
-        boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
-        std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
-        Allocator>;
+      -> unordered_map<detail::iter_key_t<InputIterator>,
+        detail::iter_val_t<InputIterator>,
+        boost::hash<detail::iter_key_t<InputIterator> >,
+        std::equal_to<detail::iter_key_t<InputIterator> >, Allocator>;
 
-    template <class InputIterator, class Hash, class Allocator>
-    unordered_map(InputIterator, InputIterator, std::size_t, Hash, Allocator)
-      ->unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
-        boost::unordered::detail::iter_val_t<InputIterator>, Hash,
-        std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
-        Allocator>;
+    template <class InputIterator, class Hash, class _Allocator,
+      class = enable_if_t<detail::is_input_iterator<InputIterator>::value>,
+      class = enable_if_t<!detail::is_allocator<Hash>::value>,
+      class = enable_if_t<!is_integral<Hash>::value>,
+      class = enable_if_t<detail::is_allocator<_Allocator>::value> >
+    unordered_map(InputIterator, InputIterator,
+      typename std::allocator_traits<_Allocator>::size_type, Hash, _Allocator)
+      -> unordered_map<detail::iter_key_t<InputIterator>,
+        detail::iter_val_t<InputIterator>, Hash,
+        std::equal_to<detail::iter_key_t<InputIterator> >, _Allocator>;
 
-    template <class Key, class T, typename Allocator>
-    unordered_map(
-      std::initializer_list<std::pair<const Key, T> >, std::size_t, Allocator)
-      ->unordered_map<Key, T, boost::hash<Key>, std::equal_to<Key>, Allocator>;
+    template <class Key, class Tp, class Allocator,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
+    unordered_map(std::initializer_list<std::pair<Key, Tp> >,
+      typename std::allocator_traits<Allocator>::size_type, Allocator)
+      -> unordered_map<std::remove_const_t<Key>, Tp,
+        boost::hash<std::remove_const_t<Key> >,
+        std::equal_to<std::remove_const_t<Key> >, Allocator>;
 
-    template <class Key, class T, typename Allocator>
-    unordered_map(std::initializer_list<std::pair<const Key, T> >, Allocator)
-      ->unordered_map<Key, T, boost::hash<Key>, std::equal_to<Key>, Allocator>;
+    template <class Key, class Tp, class Allocator,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
+    unordered_map(std::initializer_list<std::pair<Key, Tp> >, Allocator)
+      -> unordered_map<std::remove_const_t<Key>, Tp,
+        boost::hash<remove_const_t<Key> >,
+        std::equal_to<std::remove_const_t<Key> >, Allocator>;
 
-    template <class Key, class T, class Hash, class Allocator>
-    unordered_map(std::initializer_list<std::pair<const Key, T> >, std::size_t,
-      Hash, Allocator)
-      ->unordered_map<Key, T, Hash, std::equal_to<Key>, Allocator>;
+    template <class Key, class Tp, class Hash, class Allocator,
+      class = std::enable_if_t<!detail::is_allocator<Hash>::value>,
+      class = std::enable_if_t<!is_integral<Hash>::value>,
+      class = std::enable_if_t<detail::is_allocator<Allocator>::value> >
+    unordered_map(std::initializer_list<std::pair<Key, Tp> >,
+      typename std::allocator_traits<Allocator>::size_type, Hash, Allocator)
+      -> unordered_map<std::remove_const_t<Key>, Tp, Hash,
+        std::equal_to<std::remove_const_t<Key> >, Allocator>;
+
+    // template <class InputIterator,
+    //   class Hash =
+    //     boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //   class Pred =
+    //     std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //   class Allocator = std::allocator<
+    //     boost::unordered::detail::iter_to_alloc_t<InputIterator> >,
+    //   class = std::enable_if_t<boost::unordered::detail::is_input_iterator<InputIterator>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_hash<Hash>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_pred<Pred>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(InputIterator, InputIterator,
+    //   std::size_t = boost::unordered::detail::default_bucket_count,
+    //   Hash = Hash(), Pred = Pred(), Allocator = Allocator())
+    //   -> unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
+    //     boost::unordered::detail::iter_val_t<InputIterator>, Hash, Pred,
+    //     Allocator>;
+
+    // template <class Key, class T,
+    //   class Hash = boost::hash<std::remove_const_t<Key> >,
+    //   class Pred = std::equal_to<std::remove_const_t<Key> >,
+    //   class Allocator = std::allocator<std::pair<const Key, T> >,
+    //   class = std::enable_if_t<boost::unordered::detail::is_hash<Hash>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_pred<Pred>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(std::initializer_list<std::pair<Key, T> >,
+    //   std::size_t = boost::unordered::detail::default_bucket_count,
+    //   Hash = Hash(), Pred = Pred(), Allocator = Allocator())
+    //   -> unordered_map<std::remove_const_t<Key>, T, Hash, Pred, Allocator>;
+
+    // template <class InputIterator, class Allocator,
+    //   class = std::enable_if_t<boost::unordered::detail::is_input_iterator<InputIterator>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(InputIterator, InputIterator, std::size_t, Allocator)
+    //   -> unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
+    //     boost::unordered::detail::iter_val_t<InputIterator>,
+    //     boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //     std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //     Allocator>;
+
+    // template <class InputIterator, class Allocator,
+    //   class = std::enable_if_t<boost::unordered::detail::is_input_iterator<InputIterator>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(InputIterator, InputIterator, Allocator)
+    //   -> unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
+    //     boost::unordered::detail::iter_val_t<InputIterator>,
+    //     boost::hash<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //     std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //     Allocator>;
+
+    // template <class InputIterator, class Hash, class Allocator,
+    //   class = std::enable_if_t<boost::unordered::detail::is_input_iterator<InputIterator>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_hash<Hash>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(InputIterator, InputIterator, std::size_t, Hash, Allocator)
+    //   -> unordered_map<boost::unordered::detail::iter_key_t<InputIterator>,
+    //     boost::unordered::detail::iter_val_t<InputIterator>, Hash,
+    //     std::equal_to<boost::unordered::detail::iter_key_t<InputIterator> >,
+    //     Allocator>;
+
+    // template <class Key, class T, typename Allocator,
+    //   class = std::enable_if_t<
+    //     boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(std::initializer_list<std::pair<Key, T> >, std::size_t,
+    //   Allocator) -> unordered_map<std::remove_const_t<Key>, T,
+    //   boost::hash<std::remove_const_t<Key> >,
+    //   std::equal_to<std::remove_const_t<Key> >, Allocator>;
+
+    // template <class Key, class T, typename Allocator,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(std::initializer_list<std::pair<Key, T> >, Allocator)
+    //   -> unordered_map<std::remove_const_t<Key>, T,
+    //     boost::hash<std::remove_const_t<Key> >,
+    //     std::equal_to<std::remove_const_t<Key> >, Allocator>;
+
+    // template <class Key, class T, class Hash, class Allocator,
+    //   class = std::enable_if_t<boost::unordered::detail::is_hash<Hash>::value>,
+    //   class = std::enable_if_t<boost::unordered::detail::is_allocator<Allocator>::value> >
+    // unordered_map(std::initializer_list<std::pair<Key, T> >, std::size_t, Hash,
+    //   Allocator) -> unordered_map<std::remove_const_t<Key>, T, Hash,
+    //   std::equal_to<std::remove_const_t<Key> >, Allocator>;
 
 #endif
 
