@@ -7,7 +7,6 @@
 #include <iostream>
 #include <vector>
 
-#include <unordered_map>
 
 #if BOOST_UNORDERED_TEMPLATE_DEDUCTION_GUIDES
 struct hash_equals

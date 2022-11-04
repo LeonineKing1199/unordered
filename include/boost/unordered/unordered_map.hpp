@@ -19,6 +19,7 @@
 #include <boost/functional/hash.hpp>
 #include <boost/move/move.hpp>
 #include <boost/type_traits/is_constructible.hpp>
+#include <boost/type_traits/type_identity.hpp>
 #include <boost/unordered/detail/map.hpp>
 
 #if !defined(BOOST_NO_CXX11_HDR_INITIALIZER_LIST)
@@ -115,7 +116,8 @@ namespace boost {
 #if !defined(BOOST_NO_CXX11_HDR_INITIALIZER_LIST)
       unordered_map(std::initializer_list<value_type>,
         size_type = boost::unordered::detail::default_bucket_count,
-        const hasher& = hasher(), const key_equal& l = key_equal(),
+        const boost::type_identity_t<hasher>& = hasher(),
+        const key_equal& l = key_equal(),
         const allocator_type& = allocator_type());
 #endif
 
@@ -1878,8 +1880,9 @@ namespace boost {
 
     template <class K, class T, class H, class P, class A>
     unordered_map<K, T, H, P, A>::unordered_map(
-      std::initializer_list<value_type> list, size_type n, const hasher& hf,
-      const key_equal& eql, const allocator_type& a)
+      std::initializer_list<value_type> list, size_type n,
+      const boost::type_identity_t<hasher>& hf, const key_equal& eql,
+      const allocator_type& a)
         : table_(
             boost::unordered::detail::initial_size(list.begin(), list.end(), n),
             hf, eql, a)
