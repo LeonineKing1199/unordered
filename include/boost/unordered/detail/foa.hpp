@@ -1309,10 +1309,11 @@ public:
       using std::swap;
 
       clear();
-      swap(h(),x.h());
-      swap(pred(),x.pred());
 
       if(pocma||al()==x.al()){
+        swap(h(),x.h());
+        swap(pred(),x.pred());
+
         reserve(0);
         move_assign_if<pocma>(al(),x.al());
         swap(size_,x.size_);
@@ -1324,6 +1325,9 @@ public:
         noshrink_reserve(x.size());
         clear_on_exit c{x};
         (void)c; /* unused var warning */
+
+        swap(h(),x.h());
+        swap(pred(),x.pred());
 
         /* This works because subsequent x.clear() does not depend on the
          * elements' values.
