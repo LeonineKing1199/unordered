@@ -199,13 +199,129 @@ template <class T> struct copy_range_construct_test : public range<T>, objects
   }
 };
 
+template <class T> struct move_construct_test1 : public range<T>, objects
+{
+  move_construct_test1() : range<T>(60) {}
+
+  void run() const
+  {
+    DISABLE_EXCEPTIONS;
+    T y(this->values.begin(), this->values.end());
+
+    ENABLE_EXCEPTIONS;
+
+    BOOST_TRY
+    {
+      T x(boost::move(y));
+      DISABLE_EXCEPTIONS;
+      test::check_container(x, this->values);
+      test::check_equivalent_keys(x);
+    }
+    BOOST_CATCH(...)
+    {
+      DISABLE_EXCEPTIONS;
+
+      if (!y.empty()) {
+        test::check_container(y, this->values);
+        test::check_equivalent_keys(y);
+      }
+
+      ENABLE_EXCEPTIONS;
+      BOOST_RETHROW;
+    }
+    BOOST_CATCH_END
+  }
+};
+
+template <class T> struct move_construct_test2 : public range<T>, objects
+{
+  move_construct_test2() : range<T>(60) {}
+
+  void run() const
+  {
+    typedef typename T::allocator_type allocator_type;
+
+    DISABLE_EXCEPTIONS;
+    T y(this->values.begin(), this->values.end());
+
+    allocator_type a(2);
+
+    BOOST_TEST(a != y.get_allocator());
+
+    ENABLE_EXCEPTIONS;
+
+    BOOST_TRY
+    {
+
+      T x(boost::move(y), a);
+      DISABLE_EXCEPTIONS;
+      test::check_container(x, this->values);
+      test::check_equivalent_keys(x);
+    }
+    BOOST_CATCH(...)
+    {
+      DISABLE_EXCEPTIONS;
+
+      if (!y.empty()) {
+        test::check_container(y, this->values);
+        test::check_equivalent_keys(y);
+      }
+
+      ENABLE_EXCEPTIONS;
+      BOOST_RETHROW;
+    }
+    BOOST_CATCH_END
+  }
+};
+
+template <class T> struct move_construct_test3 : public range<T>, objects
+{
+  move_construct_test3() : range<T>(60) {}
+
+  void run() const
+  {
+    typedef typename T::allocator_type allocator_type;
+
+    DISABLE_EXCEPTIONS;
+    T y(this->values.begin(), this->values.end());
+
+    allocator_type a = y.get_allocator();
+
+    BOOST_TEST(a == y.get_allocator());
+
+    ENABLE_EXCEPTIONS;
+
+    BOOST_TRY
+    {
+      T x(boost::move(y), a);
+      DISABLE_EXCEPTIONS;
+      test::check_container(x, this->values);
+      test::check_equivalent_keys(x);
+    }
+    BOOST_CATCH(...)
+    {
+      DISABLE_EXCEPTIONS;
+
+      if (!y.empty()) {
+        test::check_container(y, this->values);
+        test::check_equivalent_keys(y);
+      }
+
+      ENABLE_EXCEPTIONS;
+      BOOST_RETHROW;
+    }
+    BOOST_CATCH_END
+  }
+};
+
 // clang-format off
 EXCEPTION_TESTS(
   (construct_test1)(construct_test2)(construct_test3)(construct_test4)
   (construct_test5)(construct_test6)(range_construct_test1)
   (range_construct_test2)(range_construct_test3)(range_construct_test4)
   (range_construct_test5)(input_range_construct_test)
-  (copy_range_construct_test),
+  (copy_range_construct_test)
+  (move_construct_test1)(move_construct_test2)(move_construct_test3),
   CONTAINER_SEQ)
 // clang-format on
 
