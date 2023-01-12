@@ -1243,7 +1243,7 @@ public:
        * elements' values.
        */
       x.for_all_elements([this](element_type* p){
-        unchecked_insert(type_policy::moved_value_from(*p));
+        unchecked_insert(type_policy::move(type_policy::value_from(*p)));
       });
     }
   }
@@ -1340,7 +1340,7 @@ public:
          * elements' values.
          */
         x.for_all_elements([this](element_type* p){
-          unchecked_insert(type_policy::moved_value_from(*p));
+          unchecked_insert(type_policy::move(type_policy::value_from(*p)));
         });
       }
     }
