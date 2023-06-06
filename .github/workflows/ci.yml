@@ -43,13 +43,13 @@ jobs:
         include:
           # Linux, gcc
           - { name: "gcc-12 w/ sanitizers (11)", sanitize: yes,
-              compiler: gcc-12,    cxxstd: '11',       os: ubuntu-22.04, targets: 'cfoa_tests' }
+              compiler: gcc-12,    cxxstd: '11',       os: ubuntu-22.04, targets: 'libs/unordered/test//cfoa_tests' }
           - { name: "gcc-12 w/ sanitizers (14)", sanitize: yes,
-              compiler: gcc-12,    cxxstd: '14',       os: ubuntu-22.04, targets: 'cfoa_tests' }
+              compiler: gcc-12,    cxxstd: '14',       os: ubuntu-22.04, targets: 'libs/unordered/test//cfoa_tests' }
           - { name: "gcc-12 w/ sanitizers (17)", sanitize: yes,
-              compiler: gcc-12,    cxxstd: '17',       os: ubuntu-22.04, targets: 'cfoa_tests' }
+              compiler: gcc-12,    cxxstd: '17',       os: ubuntu-22.04, targets: 'libs/unordered/test//cfoa_tests' }
           - { name: "gcc-12 w/ sanitizers (20)", sanitize: yes,
-              compiler: gcc-12,    cxxstd: '20',       os: ubuntu-22.04, targets: 'cfoa_tests' }
+              compiler: gcc-12,    cxxstd: '20',       os: ubuntu-22.04, targets: 'libs/unordered/test//cfoa_tests' }
 
     timeout-minutes: 180
     runs-on: ${{matrix.os}}
