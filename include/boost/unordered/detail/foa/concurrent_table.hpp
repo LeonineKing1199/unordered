@@ -100,11 +100,10 @@ class multimutex
 public:
   multimutex()
   {
-    std::size_t const alignment=64;
     auto pos=reinterpret_cast<void*>(
       ~(alignment-1)&(reinterpret_cast<std::size_t>(buf)+alignment-1));
 
-    mutexes=new(pos)Mutex[N];
+    new(pos)Mutex[N];
   }
 
   multimutex(multimutex const&)=delete;
@@ -115,15 +114,21 @@ public:
   Mutex& operator[](std::size_t pos)noexcept
   {
     BOOST_ASSERT(pos<N);
-    return mutexes[pos];
+    return mutexes()[pos];
   }
 
-  void lock()noexcept{for(std::size_t n=0;n<N;)mutexes[n++].lock();}
-  void unlock()noexcept{for(auto n=N;n>0;)mutexes[--n].unlock();}
+  void lock()noexcept{for(std::size_t n=0;n<N;)mutexes()[n++].lock();}
+  void unlock()noexcept{for(auto n=N;n>0;)mutexes()[--n].unlock();}
 
 private:
+  constexpr static std::size_t const alignment=64;
   unsigned char buf[N*sizeof(Mutex)+64];
-  Mutex* mutexes;
+
+  Mutex* mutexes()
+  {
+    return static_cast<Mutex*>(reinterpret_cast<void*>(
+      ~(alignment-1)&(reinterpret_cast<std::size_t>(buf)+alignment-1)));
+  }
 };
 
 /* std::shared_lock is C++14 */
