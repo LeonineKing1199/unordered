@@ -1251,8 +1251,8 @@ private:
   }
 #endif
 
-  static std::atomic<std::size_t> thread_counter;
-  mutable multimutex_type         mutexes;
+  static std::atomic<std::size_t>     thread_counter;
+  alignas(64) mutable multimutex_type mutexes;
 };
 
 template<typename T,typename H,typename P,typename A>
