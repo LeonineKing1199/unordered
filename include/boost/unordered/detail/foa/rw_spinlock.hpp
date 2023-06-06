@@ -5,7 +5,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // https://www.boost.org/LICENSE_1_0.txt
 
-#include <boost/core/yield_primitives.hpp>
+#include <boost/smart_ptr/detail/sp_thread_pause.hpp>
+#include <boost/smart_ptr/detail/sp_thread_sleep.hpp>
 #include <atomic>
 #include <cstdint>
 
@@ -63,10 +64,10 @@ public:
                     if( state_.compare_exchange_weak( st, newst, std::memory_order_acquire, std::memory_order_relaxed ) ) return;
                 }
 
-                boost::core::sp_thread_pause();
+                boost::detail::sp_thread_pause();
             }
 
-            boost::core::sp_thread_sleep();
+            boost::detail::sp_thread_sleep();
         }
     }
 
@@ -131,7 +132,7 @@ public:
                     state_.compare_exchange_weak( st, newst, std::memory_order_relaxed, std::memory_order_relaxed );
                 }
 
-                boost::core::sp_thread_pause();
+                boost::detail::sp_thread_pause();
             }
 
             // clear writer pending bit before going to sleep
@@ -168,7 +169,7 @@ public:
                 }
             }
 
-            boost::core::sp_thread_sleep();
+            boost::detail::sp_thread_sleep();
         }
     }
 
