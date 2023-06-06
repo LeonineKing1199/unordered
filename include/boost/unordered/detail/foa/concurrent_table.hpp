@@ -70,7 +70,7 @@ namespace foa{
 #endif
 
 template<typename T>
-struct alignas(64) cacheline_protected:T
+struct cacheline_protected:T
 {
   using T::T;
 };
