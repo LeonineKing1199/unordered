@@ -69,11 +69,26 @@ namespace foa{
 #pragma warning(disable:4324) /* padded structure due to alignas */
 #endif
 
-template<typename T>
-struct cacheline_protected:T
+template<class T,bool> struct cacheline_protected_impl;
+
+template<class T>
+struct cacheline_protected_impl<T,false>:T /* no padding required */
 {
   using T::T;
 };
+
+template<class T>
+struct cacheline_protected_impl<T,true>:T /* padding required */
+{
+  using T::T;
+
+private:
+  BOOST_STATIC_ASSERT(!std::is_empty<T>::value);
+  unsigned char padding[64-(sizeof(T)%64)];
+};
+
+template<typename T>
+using cacheline_protected=cacheline_protected_impl<T,sizeof(T)%64!=0>;
 
 #if defined(BOOST_MSVC)
 #pragma warning(pop) /* C4324 */
@@ -83,6 +98,18 @@ template<typename Mutex,std::size_t N>
 class multimutex
 {
 public:
+  multimutex()
+  {
+    std::size_t const alignment=64;
+    auto pos=reinterpret_cast<void*>(
+      ~(alignment-1)&(reinterpret_cast<std::size_t>(buf)+alignment-1));
+
+    mutexes=new(pos)Mutex[N];
+  }
+
+  multimutex(multimutex const&)=delete;
+  multimutex& operator=(multimutex const&)=delete;
+
   constexpr std::size_t size()const noexcept{return N;}
 
   Mutex& operator[](std::size_t pos)noexcept
@@ -95,7 +122,8 @@ public:
   void unlock()noexcept{for(auto n=N;n>0;)mutexes[--n].unlock();}
 
 private:
-  Mutex mutexes[N];
+  unsigned char buf[N*sizeof(Mutex)+64];
+  Mutex* mutexes;
 };
 
 /* std::shared_lock is C++14 */
@@ -1252,7 +1280,7 @@ private:
 #endif
 
   static std::atomic<std::size_t>     thread_counter;
-  alignas(64) mutable multimutex_type mutexes;
+  mutable multimutex_type mutexes;
 };
 
 template<typename T,typename H,typename P,typename A>
