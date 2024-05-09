@@ -115,10 +115,10 @@ jobs:
           - { compiler: 'clang-18', cxxstd: '17,20,2b', sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:24.04', stdlib: libc++, install: 'clang-18 libc++-18-dev libc++abi-18-dev' }
 
           # OSX, clang
-          - { compiler: clang, cxxstd: '11,14,17,2a',    os: 'macos-11' }
           - { compiler: clang, cxxstd: '11,14,17,2a',    os: 'macos-12', sanitize: yes, ccache_key: "san1" }
           - { compiler: clang, cxxstd: '11,14,17,2a',    os: 'macos-12', thread-sanitize: yes, targets: 'libs/unordered/test//cfoa_tests', ccache_key: "tsan" }
           - { compiler: clang, cxxstd: '11,14,17,20,2b', os: 'macos-13' }
+          - { compiler: clang, cxxstd: '11,14,17,20,2b', os: 'macos-14', sanitize: yes, ccache_key: "san2" }
 
     timeout-minutes: 360
     # posix (gcc-12 w/ sanitizers is taking longer than 210 minutes
