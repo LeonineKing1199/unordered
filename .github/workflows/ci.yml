@@ -78,18 +78,17 @@ jobs:
           - { compiler: clang-10,   cxxstd: '11,14,17,20', os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-10 libc++-10-dev libc++abi-10-dev' }
           - { compiler: clang-11,   cxxstd: '11,14,17,20', os: 'ubuntu-22.04', stdlib: libc++, install: 'clang-11 libc++-11-dev libc++abi-11-dev' }
           # clang-12 doesn't work on 'ubuntu-22.04', the linker can't find -lunwind for some reason
-          - { name: "clang-12 w/ sanitizers (11,14)", sanitize: yes,
-              compiler: clang-12,   cxxstd: '11,14',       os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev', ccache_key: "san1" }
-          - { name: "clang-12 w/ sanitizers (17)", sanitize: yes,
-              compiler: clang-12,   cxxstd: '17',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev', ccache_key: "san2" }
-          - { name: "clang-12 w/ sanitizers (20)", sanitize: yes,
-              compiler: clang-12,   cxxstd: '20',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev', ccache_key: "san2" }
-          - { name: "clang-12 w/ sanitizers (2b)", sanitize: yes,
-              compiler: clang-12,   cxxstd: '2b',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev', ccache_key: "san2" }
+          - { name: "clang-12 (11,14)",
+              compiler: clang-12,   cxxstd: '11,14',       os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev' }
+          - { name: "clang-12 (17)",
+              compiler: clang-12,   cxxstd: '17',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev' }
+          - { name: "clang-12 (20)",
+              compiler: clang-12,   cxxstd: '20',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev' }
+          - { name: "clang-12 (2b)",
+              compiler: clang-12,   cxxstd: '2b',          os: 'ubuntu-20.04', stdlib: libc++, install: 'clang-12 libc++-12-dev libc++abi-12-dev' }
           - { compiler: 'clang-13', cxxstd: '11,14',       os: 'ubuntu-22.04', stdlib: libc++, install: 'clang-13 libc++-13-dev libc++abi-13-dev' }
           - { compiler: 'clang-13', cxxstd: '17,20,2b',    os: 'ubuntu-22.04', stdlib: libc++, install: 'clang-13 libc++-13-dev libc++abi-13-dev' }
 
-          # not using libc++ because of https://github.com/llvm/llvm-project/issues/52771
           - { name: "clang-14 w/ sanitizers (11,14)", sanitize: yes,
               compiler: clang-14,  cxxstd: '11,14', os: 'ubuntu-22.04', ccache_key: "san1" }
           - { name: "clang-14 w/ sanitizers (17)", sanitize: yes,
@@ -105,6 +104,15 @@ jobs:
 
           - { compiler: 'clang-15', cxxstd: '11,14',    os: 'ubuntu-22.04', stdlib: libc++, install: 'clang-15 libc++-15-dev libc++abi-15-dev' }
           - { compiler: 'clang-15', cxxstd: '17,20,2b', os: 'ubuntu-22.04', stdlib: libc++, install: 'clang-15 libc++-15-dev libc++abi-15-dev' }
+
+          - { compiler: 'clang-16', cxxstd: '11,14',    sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:23.04', stdlib: libc++, install: 'clang-16 libc++-16-dev libc++abi-16-dev' }
+          - { compiler: 'clang-16', cxxstd: '17,20,2b', sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:23.04', stdlib: libc++, install: 'clang-16 libc++-16-dev libc++abi-16-dev' }
+
+          - { compiler: 'clang-17', cxxstd: '11,14',    sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:23.10', stdlib: libc++, install: 'clang-17 libc++-17-dev libc++abi-17-dev' }
+          - { compiler: 'clang-17', cxxstd: '17,20,2b', sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:23.10', stdlib: libc++, install: 'clang-17 libc++-17-dev libc++abi-17-dev' }
+
+          - { compiler: 'clang-18', cxxstd: '11,14',    sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:24.04', stdlib: libc++, install: 'clang-18 libc++-18-dev libc++abi-18-dev' }
+          - { compiler: 'clang-18', cxxstd: '17,20,2b', sanitize: yes, os: 'ubuntu-latest', container: 'ubuntu:24.04', stdlib: libc++, install: 'clang-18 libc++-18-dev libc++abi-18-dev' }
 
           # OSX, clang
           - { compiler: clang, cxxstd: '11,14,17,2a',    os: 'macos-11' }
@@ -239,6 +247,9 @@ jobs:
 
       - name: Run tests
         if: '!matrix.coverity'
+        env:
+          # using a contained workaround for: https://github.com/llvm/llvm-project/issues/52771
+          ASAN_OPTIONS: ${{ (matrix.stdlib == 'libc++' && 'alloc_dealloc_mismatch=0') || '' }}
         run: B2_TARGETS=${{matrix.targets}} ci/build.sh
 
       - name: Upload coverage
