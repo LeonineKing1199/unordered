@@ -329,6 +329,7 @@ void mmap_test(int argc, char const** argv)
 
 int main(int argc, char const** argv)
 {
+  boost::core::lwt_init();
   mmap_test(argc, argv);
   return boost::report_errors();
 }
